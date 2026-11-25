@@ -116,7 +116,7 @@ def board(i, n, ids):
     if i in PLD:
         dls.append((PLD[i] + ".pld", "PLD source"))
     dl = "".join(f'<li><a href="../assets/docs/{f}">{t}</a></li>' for f, t in dls) + f'<li><a href="{i}-notes.html">Full design notes</a></li>'
-    held = ('<p class="draft"><b>Draft:</b> the MTX PLD source is held back until its source is confirmed and credited. Game and BIOS ROMs are not published.</p>' if i == "mtx" else "")
+    held = '<p class="small">Game and BIOS ROMs are not published.</p>' if i == "mtx" else ""
     pages = SHEETS.get(i, ["Main sheet"])
     mb = round(os.path.getsize(os.path.join(ROOT, "assets", "3d", i + ".glb")) / 1e6, 1)
 
