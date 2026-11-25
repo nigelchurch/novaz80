@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Video + sound · NOVAZ80</title>
+<meta name="description" content="The MTX&#x27;s video and sound chips, with static RAM where the obsolete DRAM used to be.">
+<meta name="theme-color" content="#0b0b0d">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" aria-label="Main"><div class="wrap"><a class="brand" href="../index.html">NOVAZ80</a>
+<ul><li><a href="../index.html#story">Story</a></li><li><a href="../design.html">Design</a></li><li><a href="../index.html#build">Build</a></li><li><a href="../index.html#bus">Bus</a></li><li><a href="../index.html#boards" aria-current="true">Boards</a></li></ul></div></nav>
+<main id="main">
+<header class="bhead"><div class="wrap"><div><p class="ref">V102-VDP-1<span class="pips" aria-hidden="true"><i></i><i></i><i></i><i></i><i class="on"></i><i></i><i></i><i></i></span></p><h1>Video + sound</h1><p>The MTX&#x27;s video and sound chips, with static RAM where the obsolete DRAM used to be.</p>
+<dl class="facts"><div><dt>Video</dt><dd>TMS9929A or TMS9918A</dd></div><div><dt>VRAM</dt><dd>16 K, in a 62256 SRAM</dd></div><div><dt>Sound</dt><dd>SN76489</dd></div><div><dt>Out</dt><dd>Component or composite video, audio</dd></div><div><dt>Glue</dt><dd>GAL16V8</dd></div></dl><div class="btns"><a class="btn" href="../assets/docs/V102-VDP-1-schematic.pdf" data-sheets="2" data-id="vdp" data-start="0" data-title="Video + sound schematic" data-labels="Main sheet|Connectors">See the schematic</a></div></div>
+<div class="model" data-glb="../assets/3d/vdp.glb"><img src="../assets/img/iso-vdp.webp" width="1300" height="850" alt="Render of the Video + sound"><button type="button" class="mgo"><span>Rotate in 3D · 1.7 MB</span></button></div></div></header>
+<section class="dark sec"><div class="wrap"><h2>What's on the board</h2>
+<div class="map"><div class="pic"><div class="inner"><img src="../assets/img/top-vdp.webp" width="1042" height="1064" alt="Video + sound from above"><button type="button" class="spot" data-p="1" style="left:49.29%;top:27.06%" aria-label="1, TMS9929A video display processor">1</button><button type="button" class="spot" data-p="2" style="left:29.47%;top:12.19%" aria-label="2, 10.7386 MHz VDP crystal">2</button><button type="button" class="spot" data-p="3" style="left:72.48%;top:52.3%" aria-label="3, 62256 SRAM as 16 K VRAM">3</button><button type="button" class="spot" data-p="4" style="left:37.52%;top:44.72%" aria-label="4, VRAM row-address latch (RAS)">4</button><button type="button" class="spot" data-p="5" style="left:37.52%;top:72.26%" aria-label="5, VRAM column-address latch (CAS)">5</button><button type="button" class="spot" data-p="6" style="left:37.52%;top:58.45%" aria-label="6, VRAM write-data latch">6</button><button type="button" class="spot" data-p="7" style="left:64.25%;top:65.45%" aria-label="7, 74HC14 timing-adjust delay chain">7</button><button type="button" class="spot" data-p="8" style="left:65.4%;top:78.41%" aria-label="8, SN76489 sound generator">8</button><button type="button" class="spot" data-p="9" style="left:37.52%;top:85.7%" aria-label="9, 74HC574 sound data latch">9</button><button type="button" class="spot" data-p="10" style="left:51.5%;top:10.08%" aria-label="10, GAL16V8 I/O decode">10</button><button type="button" class="spot" data-p="11" style="left:65.58%;top:92.8%" aria-label="11, 4 MHz oscillator (sound and bus 4M)">11</button><button type="button" class="spot" data-p="12" style="left:13.98%;top:13.44%" aria-label="12, VDP sync trimmers">12</button><button type="button" class="spot" data-p="12" style="left:13.98%;top:23.51%" aria-label="12, VDP sync trimmers">12</button><button type="button" class="spot" data-p="13" style="left:11.24%;top:33.59%" aria-label="13, RCA outputs: audio, B-Y, Y, R-Y">13</button><button type="button" class="spot" data-p="13" style="left:11.24%;top:66.7%" aria-label="13, RCA outputs: audio, B-Y, Y, R-Y">13</button><button type="button" class="spot" data-p="14" style="left:21.5%;top:3.26%" aria-label="14, Stack-bus corner sockets">14</button><button type="button" class="spot" data-p="14" style="left:86.19%;top:3.26%" aria-label="14, Stack-bus corner sockets">14</button><button type="button" class="spot" data-p="14" style="left:10.8%;top:85.03%" aria-label="14, Stack-bus corner sockets">14</button><button type="button" class="spot" data-p="14" style="left:96.9%;top:85.03%" aria-label="14, Stack-bus corner sockets">14</button></div></div><ol class="plist"><li><button type="button" data-p="1"><span class="n">1</span><span class="r">IC1</span><span>TMS9929A video display processor</span></button></li><li><button type="button" data-p="2"><span class="n">2</span><span class="r">Y1</span><span>10.7386 MHz VDP crystal</span></button></li><li><button type="button" data-p="3"><span class="n">3</span><span class="r">IC5</span><span>62256 SRAM as 16 K VRAM</span></button></li><li><button type="button" data-p="4"><span class="n">4</span><span class="r">IC3</span><span>VRAM row-address latch (RAS)</span></button></li><li><button type="button" data-p="5"><span class="n">5</span><span class="r">IC4</span><span>VRAM column-address latch (CAS)</span></button></li><li><button type="button" data-p="6"><span class="n">6</span><span class="r">IC2</span><span>VRAM write-data latch</span></button></li><li><button type="button" data-p="7"><span class="n">7</span><span class="r">IC6</span><span>74HC14 timing-adjust delay chain</span></button></li><li><button type="button" data-p="8"><span class="n">8</span><span class="r">IC8</span><span>SN76489 sound generator</span></button></li><li><button type="button" data-p="9"><span class="n">9</span><span class="r">IC9</span><span>74HC574 sound data latch</span></button></li><li><button type="button" data-p="10"><span class="n">10</span><span class="r">IC7</span><span>GAL16V8 I/O decode</span></button></li><li><button type="button" data-p="11"><span class="n">11</span><span class="r">XT1</span><span>4 MHz oscillator (sound and bus 4M)</span></button></li><li><button type="button" data-p="12"><span class="n">12</span><span class="r">C1, C2</span><span>VDP sync trimmers</span></button></li><li><button type="button" data-p="13"><span class="n">13</span><span class="r">J1–J4</span><span>RCA outputs: audio, B-Y, Y, R-Y</span></button></li><li><button type="button" data-p="14"><span class="n">14</span><span class="r">JA…</span><span>Stack-bus corner sockets</span></button></li></ol></div></div></section>
+<section class="paper sec"><div class="wrap cols3"><div><h2>How it works</h2><ul><li>TMS9929A (component) or TMS9918A (composite) VDP at ports 01h/02h, outputs on RCA sockets</li><li>16 K VRAM in one 62256 SRAM behind three 74HC574 latches</li><li>SN76489 sound (03h/06h) at 4 MHz, AC-coupled to RCA</li><li>Drives bus 4M (the MTX&#x27;s CPU clock) and pulses OUT0 on OUT (00h) for the MTX page register</li></ul></div><div><h2>What it took</h2><ul><li>Replaced obsolete 4116 DRAMs: row latch on RAS, column latch on CAS, write-data latch, all on one SRAM</li><li>A Schmitt-inverter delay chain puts the column-latch edge where the VDP&#x27;s address is valid</li><li>Same video and sound chips as the MTX512, so software is compatible</li></ul></div><div><h2>Next revision</h2><ul><li>HCT parts where NMOS VDP outputs drive HC inputs</li><li>Video buffers with 75 Ω matching; bigger audio coupling cap</li><li>Mute sound at reset; 100 nF decoupling</li><li>VDP registers can be hit while the programmer holds the bus</li></ul></div></div></section>
+
+<section class="dark sec" id="schematic"><div class="wrap"><h2>Schematic</h2><p class="soft">Tap to open it full screen, then pinch, scroll or drag to explore. It stays sharp at any zoom.</p>
+<div class="sheets"><a class="sheet" href="../assets/docs/V102-VDP-1-schematic.pdf" data-sheets="2" data-id="vdp" data-start="0" data-title="Video + sound schematic" data-labels="Main sheet|Connectors"><img src="../assets/sch/vdp-1.webp" width="1100" height="778" alt="Video + sound schematic, main sheet"><span>Main sheet<b>Open</b></span></a><a class="sheet" href="../assets/docs/V102-VDP-1-schematic.pdf" data-sheets="2" data-id="vdp" data-start="1" data-title="Video + sound schematic" data-labels="Main sheet|Connectors"><img src="../assets/sch/vdp-2.webp" width="1100" height="778" alt="Video + sound schematic, connectors"><span>Connectors<b>Open</b></span></a></div></div></section>
+<section class="paper sec"><div class="wrap"><h2>Photo and files</h2>
+<div class="ph"><span class="tag">Live photo: board-vdp.jpg</span><b>The built Video + sound</b><span>Straight down or three-quarter view, chips fitted, plain background.</span></div>
+<h3 style="margin-top:36px">Downloads</h3><ul class="dl"><li><a href="../assets/docs/V102-VDP-1-schematic.pdf">Schematic (PDF)</a></li><li><a href="../assets/docs/V102-VDP-1-board.pdf">Board layout (PDF)</a></li><li><a href="../assets/docs/V102-VDP-1-bom.csv">Parts list (CSV)</a></li><li><a href="../assets/docs/V102-VDP-00.pld">PLD source</a></li><li><a href="vdp-notes.html">Full design notes</a></li></ul><details><summary>Read the PLD source, V102-VDP-00</summary><pre class="code" tabindex="0">Name     z80-VDP-out0 ;
+PartNo   00 ;
+Date     12/1/2023 ;
+Revision 01 ;
+Designer Nigel ;
+Company  xxx ;
+Assembly None ;
+Location  ;
+Device   g16v8a ;
+
+/* *************** INPUT PINS ******************** */
+
+PIN 	1 	    = 	    IORQB 	    ; 
+PIN 	2 	    = 	    M1B 	    ; 
+PIN  	3   	=   	A0  	    ;  
+PIN  	4   	=   	A1 	        ;  
+PIN  	5   	=  	    A2   	    ;  
+PIN  	6   	=   	A3   	    ;  
+PIN  	7   	=   	A4   	    ;  
+PIN  	8   	=   	A5   	    ;  
+PIN  	9   	=   	A6  	    ;  
+PIN  	11   	=   	A7  	    ;  
+PIN  	18  	=   	RDB  	    ;  
+PIN  	19  	=   	WRB  	    ;  
+
+FIELD ADDR = [A7..A0]               ;
+
+/* *************** OUTPUT PINS ******************** */
+
+PIN  	17	    =  	OUT6  	; /* data write to sound chip pos edge trigger */ 
+PIN  	16   	=  	VDPRD   ; /* read from one of 2 vdp registers   */ 
+PIN  	15   	=  	VDPWR   ; /* write to one of 2 vdp registers    */ 
+PIN  	14   	=  	IN3  	; /* strobe the data from the latch to the sound chip */ 
+PIN     12      =   OUT0    ; /* chip select for mtx page latch on myx board */
+
+/* *************** LOGIC FORMULA ******************** */
+
+OUT6	    =	(ADDR:6 &amp; !IORQB &amp; !WRB) ; 			
+// out(06h)
+
+!IN3	    =	(ADDR:3 &amp; !IORQB &amp; !RDB) ; 			
+// in(03h)
+
+!VDPRD      =   (ADDR:2 &amp; !IORQB &amp; !RDB)      #      (ADDR:1 &amp; !IORQB &amp; !RDB) ;
+// in(02h or 01h) 
+
+!VDPWR      =   (ADDR:2 &amp; !IORQB &amp; !WRB)      #      (ADDR:1 &amp; !IORQB &amp; !WRB) ;
+// out(02h or 01h)
+
+OUT0        =   (ADDR:0 &amp; !IORQB &amp; !WRB) ;
+// out(0) is page latch on mtx board connected if required through spec connector</pre></details></div></section>
+<section class="dark sec"><div class="wrap pn"><a rel="prev" href="io1.html">← I/O board</a><a href="../index.html#boards">All boards</a><a rel="next" href="io2.html">I/O 2 with LCD →</a></div></section>
+</main>
+<footer><div class="wrap"><div class="bars"></div><p>NOVAZ80, by NOVA Embedded Solutions. A hobby project, built just for fun. <a href="../index.html">The story</a> · <a href="../credits.html">Credits</a></p></div></footer>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/viewer.js" defer></script>
+<script src="../assets/js/swipe.js" defer></script>
+</body>
+</html>

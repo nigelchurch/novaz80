@@ -1,0 +1,53 @@
+Name     v102-z80-0 ;
+PartNo   00 ;
+Date     1/8/2022 ;
+Revision 01 ;
+Designer Nigel ;
+Company  xxx ;
+Assembly None ;
+Location  ;
+Device   g16v8a ;
+
+/* *************** INPUT PINS *********************/
+PIN 	1 	= 	    RESB 	                        ;
+PIN  	2   =   	RESX  	                        ;
+PIN  	3   =   	ROMCSX                          ; 
+PIN  	4   =  	    A2   	                        ; 
+PIN  	5   =   	A3   	                        ; 
+PIN  	6   =   	A4   	                        ; 
+PIN  	7   =   	A5   	                        ; 
+PIN  	8   =   	A6  	                        ; 
+PIN  	9   =   	A7  	                        ; 
+PIN  	11  =   	WRB  	                        ; 
+PIN  	12  =   	A15  	                        ; 
+PIN  	17  =   	IORQB                           ; 
+PIN  	18  =   	MREQB 	                        ;
+
+/* *************** OUTPUT PINS *********************/
+
+PIN  	13  =  	    CSB3  	                        ; 
+PIN  	14  =  	    CSB2  	                        ; 
+PIN  	15  =  	    CSB1  	                        ; 
+PIN  	16  =  	    CSB0  	                        ; 
+PIN  	19  =  	    RSTB  	                        ; 
+
+/* *************** LOGIC FORMULA *********************/
+
+!CSB0	    =	(!A15   &   !MREQB  &   IORQB)  #   ROMCSX          ; 
+// * ROM enable - active low - mapped to top 32k (now 
+
+!CSB1	    =	A15     &   !MREQB  &   IORQB	                    ; 
+// * RAM enable - active low - mapped to lower 32k for restart at 0x0000 
+
+!CSB2	    =  	!A7 & !A6 & A5 & !A4 & !A3 & !A2 & !IORQB           ; 
+// * PIO mapped to ports 20, 21, 22, 23 001000xx 
+
+!CSB3	    =	!A7 & !A6 & !A5 & A4 & A3 & !A2	& !IORQB            ; 
+// * ctc mapped to ports 18, 19, 1a, 1b 000110xx 
+
+!RSTB	    =	RESX    #   !RESB	                                ; 
+// * resetbar from reset cct OR external hi reset pulse
+
+
+
+

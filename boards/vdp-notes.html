@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Video + sound design notes · NOVAZ80</title>
+<meta name="description" content="Design analysis of the NOVAZ80 Video + sound.">
+<meta name="theme-color" content="#0b0b0d">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" aria-label="Main"><div class="wrap"><a class="brand" href="../index.html">NOVAZ80</a>
+<ul><li><a href="../index.html#story">Story</a></li><li><a href="../design.html">Design</a></li><li><a href="../index.html#build">Build</a></li><li><a href="../index.html#bus">Bus</a></li><li><a href="../index.html#boards" aria-current="true">Boards</a></li></ul></div></nav>
+<main id="main">
+<section class="paper sec"><div class="wrap"><p><a class="more" href="vdp.html">← Video + sound</a></p><article class="notes"><details class="toc"><summary>Contents</summary><ul><li><a href="#s0">0. Where this board sits in the NOVAZ80 project</a></li><li><a href="#s1">1. Summary</a></li><li><a href="#s2">2. Block diagram</a></li><li><a href="#s3">3. Parts (BoM)</a></li><li><a href="#s4">4. Subsystems</a></li><li><a href="#s5">5. I/O map (from the PLD)</a></li><li><a href="#s6">6. Connectors</a></li><li><a href="#s7">7. PLD (IC7, GAL16V8) — pin use</a></li><li><a href="#s8">8. Timing notes</a></li><li><a href="#s9">9. Observations for the next revision</a></li><li><a href="#s10">10. Open questions</a></li></ul></details><h1>NOVAZ80 VDP + Sound Board — V102-VDP-1 (Rev 001)</h1>
+<p>Design analysis from <code>V102-VDP-1.net</code> (KiCad/Eeschema 9.0.7 export, 2026-11-25), the schematic (root sheet + <code>v102-con-z80.kicad_sch</code> CONNECTORS sheet), the BoM and the PCB file (<code>V102-VDP-1.kicad_pcb</code>). ERC: 0 errors / 0 warnings. DRC: 0 violations, 0 unconnected pads, 0 footprint errors.</p>
+<p>Title block: <em>NOVAZ80 Project – V102-VDP</em>, NOVA Embedded Solutions, drawn 2023-07-07, Rev 001.
+Revision note: 1. Reconfigured off-board pins on PLD for standardisation.</p>
+<p>PLD: <code>V102-VDP-00.PLD</code> and <code>V102-VDP-00.jed</code>. The fuse map was decoded and matches the source equations (section 7).</p>
+<hr />
+<h2 id="s0">0. Where this board sits in the NOVAZ80 project</h2>
+<p>The shared video and sound board. It adds:</p>
+<ul>
+<li>a <strong>TMS9929A</strong> (PAL, 50 Hz, component) or <strong>TMS9918A</strong> (NTSC, 60 Hz, composite) VDP with <strong>16 KB of static VRAM</strong> in place of the eight 4116 DRAMs the chip was designed for,</li>
+<li>an <strong>SN76489</strong> sound generator, written through a data latch and a self-timed strobe,</li>
+<li>four RCA sockets: <strong>AUDIO</strong> and three video sockets whose use depends on the VDP fitted (section 4.3),</li>
+<li>the <strong>4 MHz oscillator</strong> that drives the bus <code>4M</code> line,</li>
+<li>the <strong><code>OUT0</code></strong> strobe (<code>OUT (00h)</code>) for the MTX board's page latch.</li>
+</ul>
+<p>Its ports (00h–03h, 06h) follow the Memotech MTX512 map. In the MTX configuration this board is required, partly because it supplies <code>OUT0</code>.</p>
+<p>The VDP interrupt leaves on <code>VDPINTB</code> only. It reaches the CPU through the I/O board's CTC channel 0 (V102-IO1-0). This board is not in the Zilog daisy chain and doesn't drive <code>INTB</code>.</p>
+<p>It takes +5 V from the stack and has no power supply of its own.</p>
+<p>Status: built, tested and in use. Section 9 collects observations for the planned 4-layer revision.</p>
+<hr />
+<h2 id="s1">1. Summary</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Video</td>
+<td>TMS9929A (Y / R-Y / B-Y) or TMS9918A (composite) VDP, 10.7386 MHz crystal. Picture taken from J3 in both cases</td>
+</tr>
+<tr>
+<td>VRAM</td>
+<td>HM62256 32 K × 8 SRAM, 16 K used (A14 grounded), behind 3 × 74HC574 latches</td>
+</tr>
+<tr>
+<td>Sound</td>
+<td>SN76489, 4 MHz clock, AC-coupled to an RCA socket</td>
+</tr>
+<tr>
+<td>Glue</td>
+<td>GAL16V8 PLD: I/O decode only. 74HC14 for VRAM strobe inversion/delay</td>
+</tr>
+<tr>
+<td>I/O ports</td>
+<td><code>00h</code> W (OUT0), <code>01h</code> VDP data, <code>02h</code> VDP control/status, <code>03h</code> R (sound strobe), <code>06h</code> W (sound data)</td>
+</tr>
+<tr>
+<td>Clock out</td>
+<td>XT1 4 MHz can → bus <code>4M</code> (SPEC pin 6) and SN76489</td>
+</tr>
+<tr>
+<td>Power</td>
+<td>+5 V from the stack (SPEC pin 2)</td>
+</tr>
+<tr>
+<td>PCB</td>
+<td>100 × 100 mm, 2-layer, 5 mm corner radius, +5 V pour on F.Cu, GND pour on B.Cu, 0.15 mm signal tracks (0.3 mm for some power)</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="s2">2. Block diagram</h2>
+<pre tabindex="0"><code>   stack bus: A0–A7, D0–D7, IORQ RD WR M1, RSTB
+        │
+   A0–A7, IORQB, RDB, WRB ─► PLD IC7 ─┬─► VDPRD (IN 01/02)  ─► VDP /CSR
+                                      ├─► VDPWR (OUT 01/02) ─► VDP /CSW      A1 ─► VDP MODE
+                                      ├─► OUT6 (OUT 06, ↑ at /WR fall) ─► IC9 74HC574 CP
+                                      ├─► IN3  (IN 03) ─► D1 ─► SN76489 /CE
+                                      └─► OUT0 (OUT 00, active high) ─► SPEC pin 7 (MTX page latch)
+
+  D0–D7 ─► VDP CD7…CD0 (bit order reversed, TI numbering)
+  D0–D7 ─► IC9 sound latch ─► D'0–D'7 ─► SN76489
+
+  ┌──────────── TMS9929A IC1 ────────────┐   Y1 10.7386 MHz, C1/C2 33 pF
+  │ AD0–AD7 ─┬─► IC3 574 (CP = ROW = /RAS inverted)       ─► A'0–A'6  ┐
+  │          ├─► IC4 574 (CP = COL = /CAS, 3 × HC14 delay) ─► A'7–A'13 ├─► HM62256 IC5 (A14 = GND)
+  │          └─► IC2 574 (CP = VWR, /OE = R/W) ─► VD0–VD7 ─┐          ┘   /CS = CAS, /WE = R/W, /OE = VWR
+  │ RD0–RD7 ◄──────────────────────────────────── VD0–VD7 ◄┴─► SRAM I/O
+  │ RAS, CAS, R/W ─► IC6 74HC14
+  │ RESET/SYNC ◄─ RSTB          INT ─► VDPINTB (SPEC pin 3) ─► I/O board CTC TRG0
+  │ pin 36 ─► J3, pin 38 ─► J2, pin 35 ─► J4  (470 R to GND each; use depends on chip)
+  └──────────────────────────────────────┘
+
+  XT1 4 MHz ─┬─► SN76489 CLK
+             └─► bus 4M (SPEC pin 6)
+  SN76489 AUDIO ─► C3 100 nF ─► J1 AUDIO
+  SN76489 /CE ◄─ D1 ◄─ IN3,  /CE ─► D2 ─► READY + /WE (R5, R1 2k2 pull-ups)
+</code></pre>
+<hr />
+<h2 id="s3">3. Parts (BoM)</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Ref</th>
+<th>Part</th>
+<th>Function</th>
+<th>Datasheet</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IC1</td>
+<td>TMS9929A (BoM) or TMS9918A, DIP-40</td>
+<td>VDP: 9929A = PAL component, 9918A = NTSC composite</td>
+<td><a href="https://git.applefritter.com/Apple-1-Tools/apple1-videocard-lib/raw/branch/main/docs/TMS9918A_TMS9928A_TMS9929A_Video_Display_Processors_Data_Manual_Nov82.pdf">TMS9918A/28A/29A Data Manual</a></td>
+</tr>
+<tr>
+<td>IC2</td>
+<td>74HC574, DIP-20</td>
+<td>VRAM write-data latch, drives the SRAM data bus on writes</td>
+<td><a href="https://www.ti.com/lit/ds/symlink/sn74hc574.pdf">SN74HC574</a></td>
+</tr>
+<tr>
+<td>IC3</td>
+<td>74HC574, DIP-20</td>
+<td>VRAM row-address latch → A'0–A'6 (silkscreen &quot;LO&quot;)</td>
+<td>as IC2</td>
+</tr>
+<tr>
+<td>IC4</td>
+<td>74HC574, DIP-20</td>
+<td>VRAM column-address latch → A'7–A'13 (silkscreen &quot;HI&quot;)</td>
+<td>as IC2</td>
+</tr>
+<tr>
+<td>IC5</td>
+<td>HM62256BLP (BoM value reads &quot;HM61256BLP&quot;), 70 ns, DIP-28</td>
+<td>VRAM, 16 K of 32 K used</td>
+<td><a href="https://web.mit.edu/6.115/www/document/62256.pdf">HM62256</a></td>
+</tr>
+<tr>
+<td>IC6</td>
+<td>74HC14, DIP-14</td>
+<td>Inverts R/W, RAS; 3-stage delay on CAS</td>
+<td><a href="https://www.ti.com/lit/ds/symlink/sn74hc14.pdf">SN74HC14</a></td>
+</tr>
+<tr>
+<td>IC7</td>
+<td>GAL16V8, DIP-20</td>
+<td>I/O decode PLD</td>
+<td><a href="http://ww1.microchip.com/downloads/en/devicedoc/atmel-0364-pld-atf16v8b-8bq-8bql-datasheet.pdf">ATF16V8B (compatible)</a></td>
+</tr>
+<tr>
+<td>IC8</td>
+<td>SN76489(AN), DIP-16</td>
+<td>Sound generator</td>
+<td><a href="http://www.vgmpf.com/Wiki/images/7/78/SN76489AN_-_Manual.pdf">SN76489AN manual</a></td>
+</tr>
+<tr>
+<td>IC9</td>
+<td>74HC574, DIP-20</td>
+<td>Sound data latch (port 06h)</td>
+<td>as IC2</td>
+</tr>
+<tr>
+<td>XT1</td>
+<td>4 MHz full-can DIP-14 oscillator</td>
+<td>Sound clock and bus <code>4M</code></td>
+<td><a href="http://cdn-reichelt.de/documents/datenblatt/B400/OSZI.pdf">Typical DIP-14 oscillator</a></td>
+</tr>
+<tr>
+<td>Y1</td>
+<td>10.7386 MHz crystal, HC-49/U</td>
+<td>VDP clock (silkscreen value; BoM says 10.7 MHz)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C1, C2</td>
+<td>33 pF disc</td>
+<td>Y1 load caps</td>
+<td>—</td>
+</tr>
+<tr>
+<td>D1, D2</td>
+<td>1N4148, SOD-123</td>
+<td>Sound strobe steering (section 4.5)</td>
+<td><a href="https://www.vishay.com/docs/85748/1n4148w.pdf">1N4148W</a></td>
+</tr>
+<tr>
+<td>R5, R1</td>
+<td>2k2</td>
+<td>Pull-ups: SN76489 /CE; READY + /WE</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R2, R3, R4</td>
+<td>470 R</td>
+<td>Loads on R-Y, Y, B-Y</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C3</td>
+<td>100 nF 1206</td>
+<td>Audio coupling</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C4–C8</td>
+<td>1 µF 1206</td>
+<td>+5 V bypass (the only bypass caps)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J1–J4</td>
+<td>RCA sockets (custom footprint), left edge</td>
+<td>AUDIO, R-Y, Y, B-Y</td>
+<td>—</td>
+</tr>
+<tr>
+<td>JA1–JA4, JA11–JA44</td>
+<td>8-way &quot;11 mm&quot; stacking sockets (bottom side)</td>
+<td>Stack bus (section 6)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="s4">4. Subsystems</h2>
+<h3>4.1 VDP CPU interface (IC1)</h3>
+<ul>
+<li><code>/CSR</code> = PLD <code>VDPRD</code> (IN 01h or 02h), <code>/CSW</code> = PLD <code>VDPWR</code> (OUT 01h or 02h), <code>MODE</code> = <strong>A1</strong>.
+<ul>
+<li>Port <code>01h</code>: MODE = 0 → VRAM data.</li>
+<li>Port <code>02h</code>: MODE = 1 → register write / address set-up (write), status (read).</li>
+<li>These are the MTX512 VDP ports.</li>
+</ul>
+</li>
+<li>Data bus: TI numbers CD0 as the MSB, so bus D0 → CD7 (pin 17) … bus D7 → CD0 (pin 24). Correct.</li>
+<li><code>RESET/SYNC</code> (pin 34) = bus <code>RSTB</code>, so the system reset resets the VDP.</li>
+<li><code>INT</code> (pin 16) → <code>VDPINTB</code> only. The TMS99xxA's INT is a push-pull output (not open-drain), so it needs no pull-up. That answers the I/O board document's open question. It also means nothing else may drive <code>VDPINTB</code>.</li>
+<li><code>GROMCLK</code> (pin 37) is not connected.</li>
+<li>No <code>/WAIT</code> on the bus, so software must pace VRAM accesses itself (minimum spacing between data-port accesses depends on the display mode; see the data manual).</li>
+</ul>
+<h3>4.2 Static VRAM (IC2–IC6)</h3>
+<p>The TMS9929A expects 4116 DRAMs: a multiplexed address on AD0–AD7 with RAS/CAS, a separate read-data bus RD0–RD7, and write data put back onto AD0–AD7 late in the cycle. This board emulates that with latches and one 32 K SRAM.</p>
+<ul>
+<li><strong>Row latch IC3:</strong> <code>CP</code> = <code>ROW</code> = RAS inverted (IC6 5→6), so it latches on RAS falling. Takes AD1–AD7 → A'0–A'6.</li>
+<li><strong>Column latch IC4:</strong> <code>CP</code> = <code>COL</code> = CAS through three Schmitt inverters (IC6 9→8→11→10→13→12), so it latches on CAS falling plus three gate delays. Takes AD1–AD7 → A'7–A'13. Schematic note &quot;TIMING DELAYS&quot;, silkscreen &quot;TIMING ADJUSTMENT&quot;.
+<ul>
+<li><strong>Why the delay (designer):</strong> the VDP's sequencing assumes 4116 DRAM, which latches its column address internally a little after CAS falls. The VDP's AD timing around CAS edges is built around that behaviour. With an SRAM and an edge-triggered '574 there is no such internal latch, so the delay has to be added artificially to put the latch edge where the column address is valid on AD1–AD7.</li>
+<li>The delay depends on the HC14 actually fitted (family, manufacturer, temperature). A 74HCT14 (observation 1) has a different propagation delay to a 74HC14, so recheck the latch edge on the scope after any change of part.</li>
+</ul>
+</li>
+<li>AD0 is used by neither latch. In 16 K (4116) mode the VDP puts its 7-bit row and column on AD1–AD7. <strong>Software must set the 4/16K bit</strong> (R1 bit 7, TI's bit 0). In 4 K mode the address bits come out differently and VRAM would alias.</li>
+<li>Q0 of IC3 and IC4 is not connected. SRAM A14 is tied to GND, so only 16 KB of the 32 KB is used. (The silkscreen &quot;8kB STATIC VRAM&quot; is wrong.) Row and column bits land on the SRAM in a permuted order. That doesn't matter, because the VDP is the only thing that addresses it.</li>
+<li><strong>SRAM IC5:</strong> <code>/CS</code> = CAS (directly), <code>/WE</code> = R/W, <code>/OE</code> = <code>VWR</code> (R/W inverted by IC6 1→2). Refresh cycles are RAS-only, so the SRAM isn't selected during them.</li>
+<li><strong>Read:</strong> R/W high → SRAM <code>/OE</code> low, IC2 outputs off. SRAM drives VD0–VD7 = VDP RD0–RD7.</li>
+<li><strong>Write:</strong> R/W low → IC2 latches AD0–AD7 on <code>VWR</code> rising (R/W falling plus one gate) and drives VD0–VD7 (<code>/OE</code> = R/W). SRAM <code>/OE</code> goes high and the write happens while CAS and R/W are both low.</li>
+<li>IC6 pin 4 (<code>VRD</code>) is an unused output.</li>
+</ul>
+<h3>4.3 Video outputs</h3>
+<p>The socket for IC1 takes either family member, and the designer has boards built both ways. Pins 35, 36 and 38 change function with the chip:</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>VDP pin</th>
+<th>Net / socket</th>
+<th>TMS9929A (component, PAL 50 Hz)</th>
+<th>TMS9918A (composite, NTSC 60 Hz)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>36</td>
+<td><code>Y</code> → J3</td>
+<td>Y (luma + sync)</td>
+<td><strong>COMVID</strong>, composite colour video</td>
+</tr>
+<tr>
+<td>38</td>
+<td><code>R-Y</code> → J2</td>
+<td>R-Y</td>
+<td><strong>CPUCLK</strong> output (XTAL/3 ≈ 3.58 MHz)</td>
+</tr>
+<tr>
+<td>35</td>
+<td><code>B-Y</code> → J4</td>
+<td>B-Y</td>
+<td><strong>EXTVID</strong> input (external video, for a second VDP)</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li>Each of the three has a 470 R load to GND and nothing else: no buffer, no 75 Ω source matching, no coupling caps.</li>
+<li><strong>In use:</strong> there is no component display, so the picture is always taken from J3.
+<ul>
+<li><strong>TMS9918A fitted:</strong> J3 is real composite colour video. J2 carries the CPU clock, loaded by R2, and isn't a video signal. J4 is the EXTVID input, held at GND by R4, which is its normal idle state.</li>
+<li><strong>TMS9929A fitted:</strong> J3 is Y, luma with sync. A composite monitor accepts it as a <strong>monochrome</strong> picture; J2 and J4 carry the colour information, which is unused.</li>
+</ul>
+</li>
+<li>The chip also sets the frame rate: 50 Hz with the 9929A, 60 Hz with the 9918A. The VDP interrupt rate follows, so software that times itself on frame interrupts runs 20 % faster with the 9918A. Original MTX software assumes 50 Hz.</li>
+<li>The 10.7386 MHz crystal suits both chips.</li>
+<li>Silkscreen near C1/C2 reads &quot;VDP SYNC TRIMMERS&quot;, but both are fixed 33 pF parts.</li>
+</ul>
+<h3>4.4 Clock (XT1)</h3>
+<ul>
+<li>4 MHz DIP-14 can, <code>EN</code> (pin 1) unconnected. Output → SN76489 <code>CLK</code> <strong>and</strong> bus <code>4M</code> (SPEC pin 6).</li>
+<li>This board is the <strong>driver of the bus <code>4M</code> line</strong> (open question in the overview). Consumers so far: Z80 SBC JJP1 (when linked 1–2, it runs the CPU from this oscillator) and I/O board JP2 (baud-master option).</li>
+<li>With the Z80 SBC set to take <code>4M</code>, its 330 R CLK pull-up (R18) and the CLK load of the whole stack hang on this oscillator.</li>
+</ul>
+<h3>4.5 Sound (IC8, IC9, D1, D2)</h3>
+<ul>
+<li><strong>Data:</strong> <code>OUT (06h)</code> → PLD <code>OUT6</code>, active high, which rises when <code>/WR</code> falls. IC9 latches D0–D7 on that edge. This relies on write data being valid <strong>before</strong> <code>/WR</code> falls. The Z80 does that (data is out from T1, <code>/WR</code> falls in T2). <code>/OE</code> of IC9 is tied low.</li>
+<li>Bit order: the SN76489's TI pin names call pin 3 &quot;D0&quot; (MSB) and pin 10 &quot;D7&quot; (LSB). The KiCad symbol uses LSB-first names instead. Bus D0 → pin 10 (LSB) … bus D7 → pin 3 (MSB), which is correct.</li>
+<li><strong>Strobe:</strong> <code>IN (03h)</code> → PLD <code>IN3</code> low. The returned byte is whatever is on the bus (no device drives it; <code>FFh</code> with the Z80 SBC's pull-ups).</li>
+<li><strong>Self-timed write:</strong>
+<ol>
+<li><code>IN3</code> low pulls <code>/CE</code> low through D1 (R5 pulls it up otherwise).</li>
+<li>With <code>/CE</code> low the SN76489 pulls its open-collector READY low, even with <code>/WE</code> high. READY is tied to <code>/WE</code> (R1 pull-up), so <code>/WE</code> goes low and the chip takes the data.</li>
+<li>While READY is low, D2 holds <code>/CE</code> low, so the cycle completes after <code>IN3</code> has gone away.</li>
+<li>After about 32 clocks (<strong>8 µs</strong> at 4 MHz) READY releases; R1 and R5 pull <code>/WE</code> and <code>/CE</code> high.</li>
+</ol>
+</li>
+<li>Consequence for software: leave at least 8 µs after <code>IN (03h)</code> before the next <code>OUT (06h)</code>, or the chip may take the new byte instead.</li>
+<li>The SN76489 has no reset pin. It powers up with random tones until software silences it, and <code>RSTB</code> doesn't help.</li>
+<li>Tone frequency = 4 MHz / (32 × N), N = 10-bit divider.</li>
+<li><strong>Audio:</strong> <code>AUDIO</code> → C3 (100 nF) → J1. No load resistor on either side.</li>
+</ul>
+<h3>4.6 Power</h3>
+<ul>
+<li>+5 V only, from SPEC pin 2. No regulator.</li>
+<li>Bypass: C4–C8 (1 µF) for 9 ICs plus the oscillator.</li>
+<li>Copper: +5 V pour on F.Cu, GND pour on B.Cu.</li>
+</ul>
+<hr />
+<h2 id="s5">5. I/O map (from the PLD)</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Read</th>
+<th>Write</th>
+<th>Device</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>00h</code></td>
+<td>—</td>
+<td><code>OUT0</code> pulse (active high) → SPEC pin 7</td>
+<td>MTX board page latch</td>
+</tr>
+<tr>
+<td><code>01h</code></td>
+<td>VRAM data</td>
+<td>VRAM data</td>
+<td>VDP (MODE 0)</td>
+</tr>
+<tr>
+<td><code>02h</code></td>
+<td>Status</td>
+<td>Register / address set-up</td>
+<td>VDP (MODE 1)</td>
+</tr>
+<tr>
+<td><code>03h</code></td>
+<td>Sound strobe (data undriven)</td>
+<td>—</td>
+<td>SN76489</td>
+</tr>
+<tr>
+<td><code>06h</code></td>
+<td>—</td>
+<td>Sound data latch</td>
+<td>IC9</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li>Full 8-bit decode (A0–A7), no mirrors in <code>00–FF</code>. A8–A15 not decoded.</li>
+<li>No clash with the I/O board: it <strong>reads</strong> <code>06h</code> (<code>IN6</code>, keyboard) and this board only <strong>writes</strong> it. No clash with the Z80 SBC (<code>18h</code>, <code>20h</code>).</li>
+<li><code>OUT0</code> pulses on any <code>OUT (00h)</code>, in every configuration. Harmless without the MTX board.</li>
+</ul>
+<hr />
+<h2 id="s6">6. Connectors</h2>
+<h3>6.1 Stack bus</h3>
+<p>One footprint per group, bottom side, same corner layout as the other boards. Every group passes through.</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Corner</th>
+<th>Connectors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Top-left</td>
+<td>JA1 ADDR, JA11 ADDR2</td>
+</tr>
+<tr>
+<td>Top-right</td>
+<td>JA2 SPEC, JA22 PROG</td>
+</tr>
+<tr>
+<td>Bottom-left</td>
+<td>JA4 DATA, JA44 AUX</td>
+</tr>
+<tr>
+<td>Bottom-right</td>
+<td>JA3 CTRL, JA33 MTX</td>
+</tr>
+</tbody>
+</table></div>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Conn</th>
+<th>Name</th>
+<th>Pins 1→8</th>
+<th>Use on this board</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>JA1</td>
+<td>ADDR</td>
+<td>A0 … A7</td>
+<td>A0–A7 → PLD; A1 → VDP MODE</td>
+</tr>
+<tr>
+<td>JA11</td>
+<td>ADDR2</td>
+<td>A15 … A8 (reversed)</td>
+<td>Pass-through</td>
+</tr>
+<tr>
+<td>JA4</td>
+<td>DATA</td>
+<td>D0 … D7</td>
+<td>VDP (reversed), IC9</td>
+</tr>
+<tr>
+<td>JA3</td>
+<td>CTRL</td>
+<td>RSTB, CLK, M1B, MREQB, IORQB, RDB, WRB, INTB</td>
+<td>RSTB → VDP reset. M1B → PLD (unused in equations). IORQB, RDB, WRB → PLD. CLK, MREQB, INTB pass-through</td>
+</tr>
+<tr>
+<td>JA2</td>
+<td>SPEC</td>
+<td>GND, +5V, VDPINTB, IEO1, IEO2, 4M, OUT0, KBDRST</td>
+<td>+5 V <strong>in</strong>. VDPINTB <strong>driven</strong> by VDP INT. 4M <strong>driven</strong> by XT1. OUT0 <strong>driven</strong> by PLD. KBDRST → PLD pin 13 (input, unused). IEO1, IEO2 pass-through</td>
+</tr>
+<tr>
+<td>JA22</td>
+<td>PROG</td>
+<td>SP3, ROM7, BUSRQ, ROMWEX, ROMCSX, RESX, ROMOEX, PWR</td>
+<td>Pass-through only (PWR carries 12 V from the CPU board)</td>
+</tr>
+<tr>
+<td>JA33</td>
+<td>MTX</td>
+<td>P0 P1 P2 P3 R0 R1 R2 CPM</td>
+<td>Pass-through</td>
+</tr>
+<tr>
+<td>JA44</td>
+<td>AUX</td>
+<td>AUX1 … AUX8</td>
+<td>Pass-through</td>
+</tr>
+</tbody>
+</table></div>
+<h3>6.2 RCA sockets (left edge, top to bottom)</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Ref</th>
+<th>Silkscreen</th>
+<th>Signal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>J1</td>
+<td>AUDIO</td>
+<td>SN76489 via C3 100 nF</td>
+</tr>
+<tr>
+<td>J4</td>
+<td>B-Y</td>
+<td>VDP pin 35: B-Y (9929A) / EXTVID input (9918A); 470 R to GND</td>
+</tr>
+<tr>
+<td>J3</td>
+<td>Y</td>
+<td>VDP pin 36: Y (9929A, used as mono composite) / composite colour (9918A); 470 R to GND</td>
+</tr>
+<tr>
+<td>J2</td>
+<td>R-Y</td>
+<td>VDP pin 38: R-Y (9929A) / CPUCLK (9918A); 470 R to GND</td>
+</tr>
+</tbody>
+</table></div>
+<p>Sleeves are all GND. There are no other headers or jumpers.</p>
+<hr />
+<h2 id="s7">7. PLD (IC7, GAL16V8) — pin use</h2>
+<p>All 18 signal pins are connected. Pin 13 is configured as an input with no equation, so it is the only free pin.</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Pin</th>
+<th>Signal</th>
+<th>Dir</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>IORQB</td>
+<td>in</td>
+<td></td>
+</tr>
+<tr>
+<td>2</td>
+<td>M1B</td>
+<td>in</td>
+<td>Declared, not used</td>
+</tr>
+<tr>
+<td>3–9, 11</td>
+<td>A0–A7</td>
+<td>in</td>
+<td><code>FIELD ADDR = [A7..A0]</code></td>
+</tr>
+<tr>
+<td>12</td>
+<td>OUT0</td>
+<td>out, <strong>active high</strong></td>
+<td>SPEC pin 7</td>
+</tr>
+<tr>
+<td>13</td>
+<td>KBDRST</td>
+<td>in (not in the source)</td>
+<td>SPEC pin 8; output disabled in the fuse map</td>
+</tr>
+<tr>
+<td>14</td>
+<td>IN3</td>
+<td>out</td>
+<td>→ D1 → SN76489 /CE</td>
+</tr>
+<tr>
+<td>15</td>
+<td>VDPWR</td>
+<td>out</td>
+<td>VDP /CSW</td>
+</tr>
+<tr>
+<td>16</td>
+<td>VDPRD</td>
+<td>out</td>
+<td>VDP /CSR</td>
+</tr>
+<tr>
+<td>17</td>
+<td>OUT6</td>
+<td>out, <strong>active high</strong></td>
+<td>IC9 CP</td>
+</tr>
+<tr>
+<td>18</td>
+<td>RDB</td>
+<td>in (I/O pin used as input)</td>
+<td></td>
+</tr>
+<tr>
+<td>19</td>
+<td>WRB</td>
+<td>in (I/O pin used as input)</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p>Equations (WinCUPL, <code>Device g16v8a</code>; the <code>.jed</code> is simple mode, <code>g16v8as</code>):</p>
+<pre tabindex="0"><code> OUT6  = ADDR:6 &amp; !IORQB &amp; !WRB ;                               /* OUT 06h, rising edge latches */
+!IN3   = ADDR:3 &amp; !IORQB &amp; !RDB ;                               /* IN  03h                     */
+!VDPRD = ADDR:2 &amp; !IORQB &amp; !RDB  #  ADDR:1 &amp; !IORQB &amp; !RDB ;    /* IN  01h/02h                 */
+!VDPWR = ADDR:2 &amp; !IORQB &amp; !WRB  #  ADDR:1 &amp; !IORQB &amp; !WRB ;    /* OUT 01h/02h                 */
+ OUT0  = ADDR:0 &amp; !IORQB &amp; !WRB ;                               /* OUT 00h, MTX page latch     */
+</code></pre>
+<ul>
+<li>The fuse map (<code>.jed</code>, built 2023-07-26, name <code>z80-VDP-out0</code>) was decoded term by term: one product term each for OUT6, IN3, OUT0, two each for VDPRD and VDPWR, all matching the source. XOR bits make OUT6 and OUT0 active high and the rest active low. AC1 bits set pins 13, 18 and 19 as inputs. Simple mode (SYN = 1, AC0 = 0). The <code>.PLD</code> <code>Date</code> field says 12/1/2023, but the logic is the same.</li>
+<li>Every select is gated by <code>/RD</code> or <code>/WR</code>, so an interrupt-acknowledge cycle (<code>/M1</code> + <code>/IORQ</code>, no strobe) can't trigger any of them.</li>
+<li><code>/MREQ</code> isn't needed (I/O only).</li>
+</ul>
+<hr />
+<h2 id="s8">8. Timing notes</h2>
+<ul>
+<li><strong>Decode:</strong> GAL16V8 delay (speed grade not recorded, typically 10–25 ns). Z80 I/O cycles include an automatic wait state, so this is comfortable at 4 MHz.</li>
+<li><strong>Sound latch</strong> clocks on the <strong>leading</strong> edge of <code>/WR</code> (section 4.5). Fine on the Z80. On the 6502 SBC it depends on how its PLD makes <code>WRB</code>: a 6502 puts write data on the bus only partway through φ2, so if <code>WRB</code> falls at φ2 rise the latch could catch stale data.</li>
+<li><strong>VRAM, column latch:</strong> the SRAM's <code>/CS</code> is CAS directly, but its upper address comes from IC4, which updates three HC14 delays (very roughly 35–75 ns) after CAS falls. For that window the SRAM sees the previous column address with <code>/CS</code> low.
+<ul>
+<li>Reads: harmless. Data is valid about one HC574 delay plus 70 ns after the latch updates.</li>
+<li>Writes: safe only as long as R/W falls after IC4 has updated. The board works, so it does, but the margin isn't documented.</li>
+<li>Worth one scope capture of CAS, COL, R/W and VWR.</li>
+</ul>
+</li>
+<li><strong>VRAM write start:</strong> when R/W falls, IC2 starts driving at once, but the SRAM's <code>/OE</code> only goes high one HC14 delay later. If the SRAM was already selected (CAS low), both drive VD0–VD7 for about 10–25 ns on every write.</li>
+<li><strong>Write data setup:</strong> IC2 latches AD0–AD7 one HC14 delay after R/W falls. This assumes the VDP's write data is already on AD at that point. <em>To confirm on the scope with the above.</em></li>
+<li><strong>Sound write:</strong> about 8 µs per byte (32 × 250 ns), not held off by hardware.</li>
+</ul>
+<hr />
+<h2 id="s9">9. Observations for the next revision</h2>
+<p>Most important first.</p>
+<ol>
+<li><strong>HC inputs driven by NMOS outputs.</strong> IC2–IC4 and IC6 take AD0–AD7, RAS, CAS and R/W straight from the TMS9929A, an NMOS part rated for V<sub>OH</sub> ≥ 2.4 V. 74HC inputs need about 3.15–3.5 V at 5 V. It works because the lightly loaded NMOS outputs rise well above their minimum, but it's out of spec. Fit <strong>74HCT574 / 74HCT14</strong>. (The schematic symbol is already the 74HCT574.)</li>
+<li><strong>Sound strobe diode levels.</strong> <code>/CE</code> is pulled low through a 1N4148 (D1, or D2 + READY's V<sub>OL</sub>): roughly 0.7–1.1 V, at or above the SN76489's 0.8 V V<sub>IL</sub> limit. It works because the NMOS threshold is typically nearer 1.4 V. Schottky diodes (e.g. BAT54) would give about 0.3 V of margin.</li>
+<li><strong>VRAM timing margins undocumented</strong> (section 8): the stale column address at the start of a CAS cycle and the brief contention at the start of each write. A cleaner scheme: gate SRAM <code>/CS</code> with the delayed <code>COL</code> instead of CAS, and drive IC2's <code>/OE</code> from a signal that only goes active after the SRAM's <code>/OE</code> is off. Check with the scope before changing anything.</li>
+<li><strong>Audio coupling.</strong> 100 nF into a typical 10 k amplifier input is a high-pass at about 160 Hz, which cuts most of the bass. Use 1–10 µF, and add a load resistor to GND on the chip side (around 1 k) to bias the output and fix the DC level.</li>
+<li><strong>Video outputs unbuffered and not matched.</strong> The 470 R loads are the only conditioning. A 75 Ω input on the display pulls the levels down and puts the cable on the VDP pins. Add an emitter-follower or video op-amp buffer with 75 Ω series resistors.
+<ul>
+<li>With a TMS9929A the only usable output is monochrome. A PAL encoder (as on the original MTX) or a Y/R-Y/B-Y → RGB matrix would give colour from the 9929A, and keep the 50 Hz timing that MTX software expects.</li>
+<li>With a TMS9918A, R2 loads the CPUCLK output (3.58 MHz into 470 R) and the clock appears on J2. Harmless, but a jumper or a fit-per-chip option for R2/R4 would be tidier. Label the sockets for both chips.</li>
+</ul>
+</li>
+<li><strong>Floating bus when the programmer holds it.</strong> While <code>BUSRQ</code> is active, <code>/IORQ</code>, <code>/RD</code>, <code>/WR</code> float (project-wide issue, Z80 SBC item 2), and the programmer drives low ROM addresses such as <code>01h</code>, <code>02h</code>, <code>06h</code>. This PLD could then write garbage into VDP registers or VRAM, start a sound write or pulse <code>OUT0</code>. The target is reset afterwards, which resets the VDP registers but not VRAM or the SN76489.</li>
+<li><strong>Sound chip has no reset.</strong> It powers up making noise. A hardware mute on reset (e.g. hold the audio path muted while <code>RSTB</code> is low) or early silencing in every ROM.</li>
+<li><strong>Almost no decoupling.</strong> Five 1 µF caps for nine ICs plus a 4 MHz oscillator and a 10.7 MHz crystal oscillator. Add 100 nF at each IC, especially the VDP, SRAM and the latches that switch at the VRAM rate.</li>
+<li><strong><code>4M</code> driven from this board.</strong> The Z80 SBC can run its CPU from it, so the CPU board's clock then depends on which optional board is fitted, and the oscillator drives the whole stack's CLK load (plus the Z80 SBC's 330 R pull-up). Either keep the CPU clock on the CPU board, or buffer <code>4M</code> here (e.g. a 74HC/AC gate per load).</li>
+<li><strong>VDP <code>INT</code> is push-pull.</strong> No pull-up is needed, but nothing else may share <code>VDPINTB</code>. Leave it point-to-point. If a later board wants to share it, add an open-collector buffer.</li>
+<li><strong>Spare PLD pin 13</strong> sees <code>KBDRST</code> as an input. Fine as is. If the line has no purpose here, removing the connection frees the pin.</li>
+<li><strong>Housekeeping:</strong>
+<ul>
+<li>Silkscreen &quot;8kB STATIC VRAM&quot; should read 16 KB (of 32 KB); &quot;VDP SYNC TRIMMERS&quot; refers to trimmers that aren't fitted (C1/C2 are fixed 33 pF).</li>
+<li>IC5's BoM value reads &quot;HM61256BLP&quot; (the part is an HM62256BLP). Y1's BoM value is 10.7 MHz; the silkscreen has the exact 10.7386 MHz.</li>
+<li>The PCB print <code>V102-VDP-1.pdf</code> title block reads &quot;NOVA Z80 v101 – VDP &amp; SOUND Board&quot;, dated 2022-09-29.</li>
+<li>The folder holds <code>PHONO-SRC-00A-erc.rpt</code> (name from another project), an extension-less file <code>V102-VDP-1</code> (an old 2023 BoM CSV), <code>V102-VDP-1.kicad_sch-bak</code> and an empty <code>cd4530cf-….log</code>.</li>
+<li>The GAL16V8 speed grade isn't recorded. The PLD source's <code>Company</code> field is <code>xxx</code>.</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="s10">10. Open questions</h2>
+<ul>
+<li>What the audio output drives (input impedance, so the real low-frequency cut-off is known).</li>
+<li>Whether the three-gate CAS delay was set by measurement, and the delay/edge position actually achieved (scope: CAS, COL, AD1–AD7).</li>
+<li>Whether anything should drive <code>4M</code> in the MTX configuration besides this board (confirm when the MTX board is documented).</li>
+<li>How the 6502 SBC's PLD generates <code>WRB</code> relative to valid write data (sound latch, section 8).</li>
+<li>Why <code>KBDRST</code> reaches PLD pin 13 (revision note &quot;reconfigured off-board pins&quot;).</li>
+</ul>
+</article></div></section>
+</main>
+<footer><div class="wrap"><div class="bars"></div><p>NOVAZ80, by NOVA Embedded Solutions. A hobby project, built just for fun. <a href="../index.html">The story</a> · <a href="../credits.html">Credits</a></p></div></footer>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/viewer.js" defer></script>
+<script src="../assets/js/swipe.js" defer></script>
+</body>
+</html>

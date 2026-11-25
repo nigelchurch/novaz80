@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fast programmer design notes · NOVAZ80</title>
+<meta name="description" content="Design analysis of the NOVAZ80 Fast programmer.">
+<meta name="theme-color" content="#0b0b0d">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" aria-label="Main"><div class="wrap"><a class="brand" href="../index.html">NOVAZ80</a>
+<ul><li><a href="../index.html#story">Story</a></li><li><a href="../design.html">Design</a></li><li><a href="../index.html#build">Build</a></li><li><a href="../index.html#bus">Bus</a></li><li><a href="../index.html#boards" aria-current="true">Boards</a></li></ul></div></nav>
+<main id="main">
+<section class="paper sec"><div class="wrap"><p><a class="more" href="pr1.html">← Fast programmer</a></p><article class="notes"><details class="toc"><summary>Contents</summary><ul><li><a href="#s0">0. Where this board sits in the NOVAZ80 project</a></li><li><a href="#s1">1. Purpose</a></li><li><a href="#s2">2. Block diagram</a></li><li><a href="#s3">3. Parts (BoM)</a></li><li><a href="#s4">4. Subsystems</a></li><li><a href="#s5">5. Target-bus connectors</a></li><li><a href="#s6">6. Firmware (z80_isp_fast.cpp)</a></li><li><a href="#s7">7. Host side</a></li><li><a href="#s8">8. Observations and things to watch</a></li></ul></details><h1>NOVAZ80 ROM Programmer — V102-PR1-2 (Rev 002)</h1>
+<p>Design analysis from <code>V102-PR1-2.net</code> (KiCad/Eeschema 9.0.7 export, 2026-11-25), the schematic PDF, the BoM, the MCU firmware <code>z80_isp_fast.cpp</code>, the host script <code>uploadROM.py</code> and the assemble/burn batch file.</p>
+<p>Title block: <em>NOVAZ80 Project – v102-PR1</em>, NOVA Embedded Solutions, drawn 2023-09-01, Rev 002.
+Revision notes:</p>
+<ol>
+<li>Changed to ATmega64A; MCU drives the ADDR and DATA lines directly (no buffers).</li>
+<li>Added JTAG and a power input for a stand-alone dev-board option.</li>
+<li>Corrected SPI programming connections (MISO/MOSI → PDO/PDI).</li>
+</ol>
+<hr />
+<h2 id="s0">0. Where this board sits in the NOVAZ80 project</h2>
+<p>NOVAZ80 is a family of square, identically sized boards that <strong>stack</strong>. Each board has the same bus connectors in its four corners, so the address bus, data bus, control bus and power pass from the bottom of the stack to the top. Any order works electrically. The only limits are physical (a tall component on one board clashing with the board above).</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Board</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Z80 SBC</strong></td>
+<td>Z80 CPU, RAM, ROM (normally 28C256), PLD glue logic</td>
+</tr>
+<tr>
+<td><strong>6502 SBC</strong></td>
+<td>Alternative CPU board: 32 K RAM / 32 K ROM, PLD glue. Uses the same bus, so it works with the same I/O and VDP boards</td>
+</tr>
+<tr>
+<td><strong>MTX board</strong></td>
+<td>Alternative to the SBCs. With the I/O and VDP boards it makes a hardware-equivalent <strong>Memotech MTX512</strong> with the original ROM/RAM paging, running the original BIOS, ROMs and games. Previously under-used ROM areas are used for extensions. Smaller 28-series EEPROMs</td>
+</tr>
+<tr>
+<td><strong>I/O board</strong> (optional)</td>
+<td>Peripheral I/O shared by all three CPU boards</td>
+</tr>
+<tr>
+<td><strong>VDP + sound board</strong> (optional)</td>
+<td>TMS99xx-family video and a sound chip, shared by all three CPU boards</td>
+</tr>
+<tr>
+<td><strong>Programmer (this board)</strong></td>
+<td>Burns the CPU board's ROM in circuit from the PC, through the stack bus</td>
+</tr>
+</tbody>
+</table></div>
+<p>A key point of the architecture is that the <strong>same I/O and VDP boards serve both the Z80 and the 6502</strong>, with each CPU board's PLD translating its CPU's bus onto the common one. The programmer relies on the same idea: it reaches the ROM through generic <code>ROMCSX / ROMWEX / ROMOEX / BUSRQ / RESX</code> lines that each CPU board's PLD interprets.</p>
+<p>Each board gets its own document like this one. Details of the CPU boards (PLD equations, memory maps, MTX paging) are in their own write-ups and are referenced here only where the programmer depends on them.</p>
+<p>Status: V102-PR1-2 has been <strong>built and tested and is in use</strong>. A future revision (4-layer, ground planes in the middle of the stack-up for signal integrity) is planned. Section 8 lists points to consider for that revision.</p>
+<hr />
+<h2 id="s1">1. Purpose</h2>
+<p>A plug-in card for the Z80 (and 6502) SBCs that burns the system EEPROM <strong>in circuit</strong>:</p>
+<ol>
+<li>The host PC assembles the source (vasm), then <code>uploadROM.py</code> streams the binary over USB-serial.</li>
+<li>The ATmega64A stores it in a 64 KB SPI SRAM (23LC512) and echoes every 10th byte back for the host to check.</li>
+<li>Once the host replies <code>v</code>, the MCU requests the target bus (<code>BUSRQ</code>), holds the target CPU off, and drives A0–A15, D0–D7 and the ROM control lines directly to write the EEPROM (64-byte page mode).</li>
+<li>It reads the ROM back against the SRAM, reports pass/fail, releases the bus and resets the target so the new code runs.</li>
+</ol>
+<hr />
+<h2 id="s2">2. Block diagram</h2>
+<pre tabindex="0"><code>          USB mini-B (J7)
+               │ D+/D-            VBUS ─R8 4k7─┬─R7 10k─ GND
+               ▼                               │
+        ┌─────────────┐  RESET# ◄─────────────┘ (FTDI held in reset when USB unplugged)
+        │  FT232RL    │
+        │  IC2 (5V IO)│ TXD ──► PE0/RXD0 ─┐
+        │             │ RXD ◄── PE1/TXD0 ─┤ (also PDI/PDO for ISP, J6)
+        │             │ DTR ──SW1──C3 100n──► RESET (Arduino-style auto-reset, switchable)
+        └─────────────┘
+                                   ┌───────────────────────────┐
+  16 MHz Y1 ──────────────────────►│        ATmega64A IC1      │
+                                   │  PA0-7 ───────────────────┼──► A0–A7   (J1/J111)
+  23LC512 IC3 ◄── SPI (PB0-PB3) ──►│  PC0-7 ───────────────────┼──► A8–A15  (J11, J5)
+  (64 KB SRAM buffer)              │  PD0-7 ◄──────────────────┼──► D0–D7   (J4/J444)
+                                   │  PE2 ROMCSX  PE3 ROMWEX   │
+                                   │  PE5 ROMOEX  PE6 BUSRQ    ├──► PROG (J22), ICPP (J5)
+                                   │  PE7 RESX                 │
+                                   │  PF0 RED  PF1 BLUE        ├──► LEDs D3, D2
+                                   │  PF4-7 JTAG               ├──► J8
+                                   └───────────────────────────┘
+  Barrel jack J9 ─► AMS1117-5.0 ─► +5V ◄─► target bus +5V (J2/J222 pin 2), J12
+</code></pre>
+<hr />
+<h2 id="s3">3. Parts (BoM)</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Ref</th>
+<th>Part</th>
+<th>Function</th>
+<th>Datasheet</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IC1</td>
+<td>ATmega64A, TQFP-64</td>
+<td>Controller</td>
+<td><a href="https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-8160-8-bit-AVR-microcontroller-ATmega64A_datasheet.pdf">ATmega64A</a></td>
+</tr>
+<tr>
+<td>IC2</td>
+<td>FT232RL, SSOP-28</td>
+<td>USB ↔ UART</td>
+<td><a href="https://ftdichip.com/wp-content/uploads/2020/08/DS_FT232R.pdf">FT232R</a></td>
+</tr>
+<tr>
+<td>IC3</td>
+<td>23LC512, SOIC-8</td>
+<td>64 KB SPI SRAM image buffer</td>
+<td><a href="https://ww1.microchip.com/downloads/en/DeviceDoc/20005155B.pdf">23LC512</a></td>
+</tr>
+<tr>
+<td>IC4</td>
+<td>AMS1117-5.0, SOT-223</td>
+<td>5 V LDO for barrel-jack power</td>
+<td><a href="http://www.advanced-monolithic.com/pdf/ds1117.pdf">AMS1117</a></td>
+</tr>
+<tr>
+<td>Y1, C1, C2</td>
+<td>16 MHz HC49-SD + 2× 22 pF</td>
+<td>MCU clock</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C3</td>
+<td>100 nF</td>
+<td>DTR auto-reset coupling cap</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C4–C8</td>
+<td>1 µF</td>
+<td>+5 V bypass (C5–C8 &quot;adjacent to ICs&quot;), C4 = LDO output</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C9</td>
+<td>100 nF</td>
+<td>FT232 3V3OUT decoupling</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C10</td>
+<td>1 µF</td>
+<td>LDO input</td>
+<td>—</td>
+</tr>
+<tr>
+<td>D1 / R1</td>
+<td>Green LED / 470 R</td>
+<td>Power indicator (+5 V)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>D2 / R3</td>
+<td>Blue LED / 470 R</td>
+<td>Status (PF1)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>D3 / R4</td>
+<td>Red LED / 470 R</td>
+<td>Status (PF0)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R2</td>
+<td>10 k</td>
+<td>MCU RESET pull-up</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R5</td>
+<td>1 k</td>
+<td>SRAM /CS pull-up (SRAM deselected while MCU resets)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R6</td>
+<td>1 k</td>
+<td>SRAM SIO2 pull-up</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R7, R8</td>
+<td>10 k / 4k7</td>
+<td>VBUS sense divider → FT232 RESET# (≈3.4 V when USB present)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>SW1</td>
+<td>SPDT slide</td>
+<td>Enables/disables DTR auto-reset</td>
+<td>—</td>
+</tr>
+<tr>
+<td>JP1</td>
+<td>2-pin jumper</td>
+<td>Connects +5 V to ICSP J6 pin 5</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J1–J44 etc.</td>
+<td>8-way pin sockets (&quot;11 mm&quot;)</td>
+<td>Target-bus stacking connectors (section 5)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J5</td>
+<td>1×15 header &quot;ICPP&quot;</td>
+<td>Upper address + control + power to a cabled target</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J6</td>
+<td>2×3 IDC (horizontal) &quot;ICSP&quot;</td>
+<td>AVR SPI programming of IC1</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J7</td>
+<td>USB mini-B</td>
+<td>Host link</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J8</td>
+<td>2×5 IDC &quot;JTAG&quot;</td>
+<td>AVR JTAG debug</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J9</td>
+<td>Barrel jack (Würth 694106301002)</td>
+<td>Stand-alone power input</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J10</td>
+<td>1-pin</td>
+<td>RESET test point / &quot;option&quot;</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J12</td>
+<td>2×3 socket</td>
+<td>+5 V / GND only (pins 2/4/6 = +5 V, 1/3/5 = GND)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<p>The target ROM is not on this board. The firmware assumes an AT28C256-type EEPROM: 64-byte pages, ≤150 µs between bytes in a page, DATA polling for end-of-write (<a href="https://ww1.microchip.com/downloads/en/DeviceDoc/doc0006.pdf">AT28C256</a>).</p>
+<hr />
+<h2 id="s4">4. Subsystems</h2>
+<h3>4.1 Microcontroller (IC1, ATmega64A)</h3>
+<ul>
+<li>16 MHz crystal on XTAL1/XTAL2 with 22 pF loads.</li>
+<li>RESET: 10 k pull-up (R2). Also goes to ICSP J6-2, test pin J10, and through C3 → SW1 → FT232 DTR.</li>
+<li>VCC, AVCC and AREF all tie straight to +5 V. The ADC isn't used.</li>
+<li>/PEN left open (it has an internal pull-up).</li>
+<li><strong>Fuses</strong> (noted on the schematic): LF 0xBF, HF 0x0E, LB 0xFF. Decoded:
+<ul>
+<li>LF 0xBF → CKSEL = 1111, SUT = 11 (external crystal, slow-rising power), <strong>BODEN programmed</strong>, BODLEVEL = 1 (<strong>2.7 V</strong>).</li>
+<li>HF 0x0E → OCDEN and JTAGEN programmed (JTAG enabled on PF4–PF7), SPIEN programmed, CKOPT programmed (full-swing oscillator, needed at 16 MHz), EESAVE off, BOOTSZ = 11 (512-word boot section), <strong>BOOTRST programmed</strong> (reset jumps to a bootloader).</li>
+<li>LB 0xFF → no lock bits.</li>
+</ul>
+</li>
+<li>BOOTRST combined with the DTR auto-reset shows the firmware is normally uploaded over USB through a serial bootloader (MegaCore-style). ICSP and JTAG are the fallbacks.</li>
+</ul>
+<h3>4.2 USB-serial (IC2, FT232RL)</h3>
+<ul>
+<li><strong>Self-powered configuration.</strong> FT232 VCC and VCCIO are on the board's +5 V rail, not on USB VBUS. VBUS feeds only the R8/R7 divider into RESET#, so the FTDI chip stays in reset (UART pins high-Z) whenever USB is unplugged. A note on the schematic uses this on purpose: <strong>unplug USB while ISP-programming the MCU</strong>, because FT232 TXD shares PE0 (= PDI) and RXD shares PE1 (= PDO). There are no series resistors on these lines.</li>
+<li><strong>USB does not power the board.</strong> Power must come from the target bus, J12 or the barrel jack.</li>
+<li>TXD → PE0 (RXD0), RXD ← PE1 (TXD0). 5 V logic (VCCIO = 5 V).</li>
+<li>DTR → SW1 → C3 → RESET gives auto-reset when SW1 is closed. SW1 therefore selects <strong>uploading mode</strong> (normal, no auto-reset) or <strong>programmer-firmware mode</strong> (auto-reset for the bootloader). RTS, CTS and the other modem lines are unused.</li>
+<li>CBUS0–4 are unused, so there are no TX/RX activity LEDs. CBUS0/1 default to TXLED#/RXLED# if you ever want them.</li>
+<li>The 3V3OUT pin is decoupled only (C9). TEST, AGND and GND are grounded. USB ID (J7-4) is grounded.</li>
+<li>The host script finds the programmer by looking for <strong>&quot;Z80&quot; in the FT232's USB serial number</strong>, which has been customised in the FTDI EEPROM (FT_Prog).</li>
+</ul>
+<h3>4.3 Image buffer (IC3, 23LC512)</h3>
+<ul>
+<li>Hardware SPI: SCK = PB1, MOSI = PB2 → SI, MISO = PB3 ← SO, /CS = PB0 (/SS) with a 1 k pull-up.</li>
+<li>/HOLD is tied to +5 V and SIO2 is pulled up by R6, so it runs in plain SPI mode.</li>
+<li>In firmware <code>SRAM_23LC SRAM(&amp;SPI, 8, SRAM_23LC512)</code>: Arduino pin 8 is PB0 in the MegaCore ATmega64 pin map, which matches the hardware.</li>
+<li>The SPI bus also appears on <strong>J44 AUX</strong> (pins 3/4/5 = MISO/MOSI/SCK).</li>
+<li>Capacity is 64 KB, so the largest image is 65 533 bytes (64 K minus the 3-byte EOF marker).</li>
+</ul>
+<h3>4.4 Power</h3>
+<p>Three ways onto the single +5 V net:</p>
+<ol>
+<li><strong>From the target SBC</strong> through the SPEC connectors (J2/J222 pin 2 = +5 V, pin 1 = GND). This is the normal case when stacked.</li>
+<li><strong>J12</strong> 2×3 power socket.</li>
+<li><strong>J9 barrel jack → AMS1117-5.0</strong> (stand-alone/dev-board option). It needs roughly ≥ 6.5 V in. The jack's switch contact is tied to GND, so it isn't used as a switch.</li>
+</ol>
+<h3>4.5 Indicators</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>LED</th>
+<th>Drive</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D1 green</td>
+<td>+5 V via 470 R</td>
+<td>Power</td>
+</tr>
+<tr>
+<td>D3 red</td>
+<td>PF0 via 470 R</td>
+<td>Status (see 6.3)</td>
+</tr>
+<tr>
+<td>D2 blue</td>
+<td>PF1 via 470 R</td>
+<td>Status (see 6.3)</td>
+</tr>
+</tbody>
+</table></div>
+<h3>4.6 MCU programming / debug headers</h3>
+<ul>
+<li><strong>J6 ICSP (2×3, horizontal IDC):</strong> 1 GND, 2 RST, 3 PDI (PE0), 4 SCK (PB1), 5 +5 V via JP1, 6 PDO (PE1).
+This is the standard Atmel 6-pin ISP pinout with the pin numbers mirrored (pin <em>n</em> ↔ 7−<em>n</em>): standard is 1 MISO, 2 VCC, 3 SCK, 4 MOSI, 5 RST, 6 GND. It's probably deliberate, to suit the horizontal footprint, but check the key/cable orientation before use. On the ATmega64A, ISP uses <strong>PDI/PDO on PE0/PE1</strong>, not the SPI MOSI/MISO pins (that was revision note 3). JP1 decides whether the ISP tool powers the board.</li>
+<li><strong>J8 JTAG (2×5):</strong> 1 +5 V, 2 TMS (PF5), 3/5/7/9 GND, 4 TCK (PF4), 6 TDO (PF6), 8 TDI (PF7), 10 n/c.
+This is <strong>not</strong> the standard Atmel 10-pin JTAG pinout (TCK/GND/TDO/VTref/TMS/nSRST/–/nTRST/TDI/GND), and it carries no nSRST. An Atmel-ICE or similar needs an adapter.</li>
+</ul>
+<hr />
+<h2 id="s5">5. Target-bus connectors</h2>
+<p>All are 8-way &quot;11 mm&quot; pin sockets (long-pin stacking type), placed on the bottom side in four corner clusters. The PCB places them as follows:</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Corner</th>
+<th>Connectors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Top-left</td>
+<td>J1 ADDR, J11 ADDR2, J111 ADDR</td>
+</tr>
+<tr>
+<td>Top-right</td>
+<td>J2 SPEC, J22 PROG, J222 SPEC</td>
+</tr>
+<tr>
+<td>Bottom-left</td>
+<td>J4 DATA, J44 AUX, J444 DATA</td>
+</tr>
+<tr>
+<td>Bottom-right</td>
+<td>J3 CTRL, J33 MTX, J333 CTRL</td>
+</tr>
+</tbody>
+</table></div>
+<p>In each corner, the first two connectors listed are parallel rows 2.54 mm apart. The third (J111, J222, J333, J444) runs at 90° to them and duplicates the first one pin for pin.</p>
+<p><strong>Stacking (as described by the designer):</strong> the duplicated pairs carry each bus group up to the board above and down to the board below. <em>To confirm against the PCB/3D model:</em> long-pin stacking sockets usually pass signals through a single footprint (socket on top, pins below). The single connectors (J11 A8–A15, J22 PROG, J33 MTX, J44 AUX) also need to reach both neighbours if the programmer can sit anywhere in the stack.</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Conn</th>
+<th>Name</th>
+<th>Pins 1→8</th>
+<th>Connected to MCU?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>J1 / J111</td>
+<td>ADDR</td>
+<td>A0 A1 A2 A3 A4 A5 A6 A7</td>
+<td>Yes, PA0–PA7</td>
+</tr>
+<tr>
+<td>J11</td>
+<td>ADDR2</td>
+<td><strong>A15</strong> A14 A13 A12 A11 A10 A9 <strong>A8</strong> (reversed order)</td>
+<td>Yes, PC7…PC0</td>
+</tr>
+<tr>
+<td>J4 / J444</td>
+<td>DATA</td>
+<td>D0 … D7</td>
+<td>Yes, PD0–PD7</td>
+</tr>
+<tr>
+<td>J22</td>
+<td>PROG</td>
+<td>n/c, ROM7, BUSRQ, ROMWEX, ROMCSX, RESX, ROMOEX, PWR</td>
+<td>BUSRQ=PE6, ROMWEX=PE3, ROMCSX=PE2, RESX=PE7, ROMOEX=PE5</td>
+</tr>
+<tr>
+<td>J2 / J222</td>
+<td>SPEC</td>
+<td>GND, +5V, VDPINTB, IEO1, IEO2, 4M, OUT0, KBDRST</td>
+<td>Power only, rest pass-through</td>
+</tr>
+<tr>
+<td>J3 / J333</td>
+<td>CTRL</td>
+<td>RSTB, CLK, M1B, MREQB, IORQB, RDB, WRB, INTB</td>
+<td>No, pass-through</td>
+</tr>
+<tr>
+<td>J33</td>
+<td>MTX</td>
+<td>P0 P1 P2 P3 R0 R1 R2 CPM</td>
+<td>No (each pin is a one-node net, so mechanical/locating only)</td>
+</tr>
+<tr>
+<td>J44</td>
+<td>AUX</td>
+<td>–, –, MISO, MOSI, SCK, –, –, –</td>
+<td>SPI bus</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>J5 ICPP (1×15):</strong> 1 GND, 2 PWR, 3–10 A8–A15, 11 BUSRQ, 12 ROMWEX, 13 ROMCSX, 14 RESX, 15 ROMOEX.
+The designer describes J5 as the header used for the one-time programming of the programmer board itself. Programming the programmer is outside the scope of this document. <em>To confirm:</em> in the netlist J5 carries A8–A15 and the ROM/bus control lines, not the AVR ISP signals. The ATmega64A's ISP signals (RST, SCK, PDI, PDO) are on <strong>J6</strong>. J5 also lacks A0–A7 and D0–D7.</p>
+<p>Single-node nets with no other connection on this board: ROM7 (J22-2), the J33 signals, and PWR (J22-8 ↔ J5-2 only, not +5 V).</p>
+<p>The ROM control polarities (ROMCSX active-high, ROMWEX/ROMOEX active-low, RESX active-high) are decoded by the <strong>PLD on the target SBC</strong>, which isn't part of this design. Check them against the PLD equations.</p>
+<h3>MCU pin allocation summary</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PA0–7</td>
+<td>A0–A7</td>
+</tr>
+<tr>
+<td>PB0–3</td>
+<td>SRAM /CS, SCK, MOSI, MISO</td>
+</tr>
+<tr>
+<td>PB4–7</td>
+<td>unused</td>
+</tr>
+<tr>
+<td>PC0–7</td>
+<td>A8–A15</td>
+</tr>
+<tr>
+<td>PD0–7</td>
+<td>D0–D7 (bidirectional)</td>
+</tr>
+<tr>
+<td>PE0/PE1</td>
+<td>UART0 RX/TX (FT232), also ISP PDI/PDO</td>
+</tr>
+<tr>
+<td>PE2/3/5/6/7</td>
+<td>ROMCSX, ROMWEX, ROMOEX, BUSRQ, RESX</td>
+</tr>
+<tr>
+<td>PE4</td>
+<td>unused</td>
+</tr>
+<tr>
+<td>PF0/PF1</td>
+<td>Red / blue LED</td>
+</tr>
+<tr>
+<td>PF2/PF3</td>
+<td>unused</td>
+</tr>
+<tr>
+<td>PF4–7</td>
+<td>JTAG</td>
+</tr>
+<tr>
+<td>PG0–4</td>
+<td>unused</td>
+</tr>
+</tbody>
+</table></div>
+<p>All target-facing pins sit at AVR reset default (inputs, hi-Z) until the firmware takes the bus, so the card is passive while the SBC runs.</p>
+<hr />
+<h2 id="s6">6. Firmware (<code>z80_isp_fast.cpp</code>)</h2>
+<p>Arduino framework, MegaCore-style ATmega64 core. Build switches:</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Define</th>
+<th>Value</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SRAM_TYPE</code></td>
+<td>512</td>
+<td>23LC512 (64 KB)</td>
+</tr>
+<tr>
+<td><code>PAGEMODE</code></td>
+<td>1</td>
+<td>64-byte page writes</td>
+</tr>
+<tr>
+<td><code>BAUD_RATE</code></td>
+<td>57600</td>
+<td>Must match <code>uploadROM.py</code></td>
+</tr>
+<tr>
+<td><code>VERIFY_STEP</code></td>
+<td>10</td>
+<td>Echo every 10th byte for transfer check</td>
+</tr>
+<tr>
+<td><code>T_*</code></td>
+<td>1 µs</td>
+<td>Read/write setup and hold</td>
+</tr>
+</tbody>
+</table></div>
+<h3>6.1 Main sequence (<code>loop()</code>)</h3>
+<ol>
+<li><strong>Reset the target</strong> (red LED very fast). RESX high 500 ms → low, wait 2 s, then high 200 ms → low. RESX is then released to input. This takes about <strong>3.2 s</strong>.</li>
+<li><strong>Receive.</strong> Each serial byte goes into SRAM at <code>index++</code>. Reception ends when the last three stored bytes are <code>88,88,88</code> (<code>&quot;XXX&quot;</code>, the EOF frame). The LED changes from slow red to slow blue once bytes arrive. If the host goes quiet for 1 s mid-transfer, it gives up.</li>
+<li><strong>Echo check.</strong> <code>datalength = index − 3</code>. It sends SRAM[0], SRAM[10], SRAM[20] … at 50 µs spacing, then waits <code>datalength/16</code> ms. Both LEDs flash fast.</li>
+<li><strong>Wait for the host verdict.</strong> <code>v</code> means go. Anything else aborts.</li>
+<li><strong>Take the bus.</strong> BUSRQ is asserted (PE6 low), ROMCSX high, ROMWEX high, ROMOEX low. The target is pulsed through RESX for 200 ms. A/C/D ports become outputs. <strong>BUSAK is not monitored</strong> (it isn't on any connector). The firmware just waits 200 ms.</li>
+<li><strong>Burn</strong> (both LEDs slow). For each full 64-byte page <code>writePagetoROM()</code>: set A8–A15 once, raise OE, then for 64 bytes set A0–A7 + data and give a 1 µs WE pulse, then <strong>DATA-poll</strong> the page's last byte until it reads back correctly (500 ms timeout → <code>T</code>). The remaining bytes use <code>writeBytetoROM()</code>, one byte at a time with the same polling. It sends <code>u</code> every 2 % and <code>U</code> when done.</li>
+<li><strong>Read-back verify.</strong> Every byte is compared ROM vs SRAM. It sends <code>g</code> every 2 %, then <code>p</code> on pass (solid blue) or <code>f</code> on fail (fast red).</li>
+<li><strong>Release.</strong> Ports go to inputs, ROMCSX low, BUSRQ released, target reset via RESX for 500 ms, then all of PORTE goes hi-Z. It returns to step 2 and waits for the next file. It does not repeat the 3.2 s reset unless it exits via timeout or abort.</li>
+</ol>
+<h3>6.2 Serial protocol</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Direction</th>
+<th>Byte(s)</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Host → MCU</td>
+<td>raw binary, then <code>X X X</code> (0x58 ×3)</td>
+<td>Image + EOF</td>
+</tr>
+<tr>
+<td>MCU → Host</td>
+<td>every 10th byte</td>
+<td>Transfer echo</td>
+</tr>
+<tr>
+<td>Host → MCU</td>
+<td><code>v</code> / <code>b</code></td>
+<td>Echo good / bad</td>
+</tr>
+<tr>
+<td>MCU → Host</td>
+<td><code>u</code> … <code>U</code></td>
+<td>Burn progress (2 %) / burn done</td>
+</tr>
+<tr>
+<td>MCU → Host</td>
+<td><code>T</code></td>
+<td>EEPROM write timeout</td>
+</tr>
+<tr>
+<td>MCU → Host</td>
+<td><code>g</code> …</td>
+<td>Verify progress (2 %)</td>
+</tr>
+<tr>
+<td>MCU → Host</td>
+<td><code>p</code> / <code>f</code></td>
+<td>ROM verify pass / fail</td>
+</tr>
+</tbody>
+</table></div>
+<h3>6.3 LED codes (Timer1 compare ISR)</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th><code>status</code></th>
+<th>Red (PF0)</th>
+<th>Blue (PF1)</th>
+<th>State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>slow flash</td>
+<td>off</td>
+<td>Waiting for host</td>
+</tr>
+<tr>
+<td>1</td>
+<td>off</td>
+<td>slow flash</td>
+<td>Receiving</td>
+</tr>
+<tr>
+<td>2</td>
+<td>fast (3×)</td>
+<td>fast (3×)</td>
+<td>Echo/verify transfer</td>
+</tr>
+<tr>
+<td>3</td>
+<td>slow</td>
+<td>slow</td>
+<td>Burning ROM</td>
+</tr>
+<tr>
+<td>4</td>
+<td>4× flash</td>
+<td>off</td>
+<td>ROM verify failed</td>
+</tr>
+<tr>
+<td>5</td>
+<td>off</td>
+<td>solid</td>
+<td>Success</td>
+</tr>
+<tr>
+<td>6</td>
+<td>6× flash</td>
+<td>off</td>
+<td>Target reset / write timeout</td>
+</tr>
+</tbody>
+</table></div>
+<p>Timer1 uses prescaler /64 (<code>TCCR1B = 0b011</code>; the comment saying /128 is wrong). 16 MHz / 64 / 31250 gives a 125 ms ISR period, so the base flash is 4 Hz toggling (about 2 Hz blink).</p>
+<hr />
+<h2 id="s7">7. Host side</h2>
+<h3>7.1 Batch file flow</h3>
+<ol>
+<li>Detect which PC it's on and set <code>%realpath%</code>.</li>
+<li><code>vasmz80_oldstyle -Fbin -dotdir … z80.asm -L listing.txt -nocase -o …\z80.out</code> (the 6502 variant swaps in <code>vasm6502_oldstyle</code>).</li>
+<li>On success: move <code>z80.out</code> into <code>z80-current\</code>, make a hex dump (<code>certutil</code> → <code>hexdump_mod.py</code>) and a formatted listing (<code>listing.py</code>).</li>
+<li><code>python uploadROM.py ./z80-current/z80.out</code> (the burn).</li>
+<li>Rename/copy the output to <code>z80.hex</code> and <code>z80.obj</code>.</li>
+</ol>
+<p><code>-Fbin</code> output starts at file offset 0, so it is always burnt from <strong>ROM address 0</strong>. The program's <code>ORG</code> must correspond to wherever the PLD maps ROM address 0 into CPU space (e.g. <code>$8000</code> on a 32 K-ROM 6502 map).</p>
+<h3>7.2 <code>uploadROM.py</code></h3>
+<ol>
+<li>Enumerate COM ports, skip COM1, and pick the one whose USB serial number contains &quot;Z80&quot;. It aborts if there are zero or more than one.</li>
+<li>Open at 57600 8N1 with a 2 s timeout (3 retries), then pause about 1.5 s.</li>
+<li>Send the binary one byte per <code>write()</code> call, then <code>X X X</code>.</li>
+<li>Read one echo byte per 10 bytes and compare. Send <code>v</code> or <code>b</code>.</li>
+<li>Listen for <code>u/U/g/T/p/f</code> and draw progress bars. Print the elapsed time.</li>
+</ol>
+<hr />
+<h2 id="s8">8. Observations and things to watch</h2>
+<p>Most important first.</p>
+<ol>
+<li><strong>EOF marker can occur in real data.</strong> The firmware stops receiving at <em>any</em> three consecutive 0x58 bytes. A binary containing <code>XXX</code> (text, tables, graphics) gets truncated. Usually the host's echo check then fails, but the leftover bytes sit in the MCU's RX buffer and the first one is read as the host's verdict. If that byte happens to be <code>v</code> (0x76), a truncated image would be burnt. A length prefix or escape scheme would remove this.</li>
+<li><strong>SW1 modes (confirmed by the designer):</strong> <em>uploading mode</em> (normal; DTR auto-reset off) and <em>programmer-firmware mode</em> (DTR auto-reset on, for the bootloader). Leave it in uploading mode for ROM burns. With auto-reset on, opening the port restarts the MCU: bootloader delay plus the ~3.2 s target-reset sequence. The script starts sending after about 1.5 s, which overflows the 64-byte RX buffer. The same 3.2 s window applies if a new upload starts right after an aborted one.</li>
+<li><strong>No BUSAK feedback.</strong> Bus ownership is assumed after a fixed 200 ms. The MCU drives A0–A15 and D0–D7 with <strong>no series resistors or buffers</strong> (revision note 1), so if the CPU hasn't released the bus (or a 6502 board doesn't honour BUSRQ via its PLD), you get direct output contention.</li>
+<li><strong>FT232 ↔ ISP sharing PE0/PE1.</strong> As the schematic note says, unplug USB while ISP-programming the MCU. Small series resistors (≈1 k) on TXD/RXD would make this tolerant.</li>
+<li><strong>Non-standard connector pinouts.</strong> J6 ICSP is mirrored and J8 JTAG is custom (section 4.6). Label them on the silkscreen or make adapters.</li>
+<li><strong>BOD at 2.7 V with a 16 MHz clock.</strong> The ATmega64A is only rated for 16 MHz at ≥ 4.5 V. BODLEVEL = 0 (4.0 V) would be the safer fuse setting. OCDEN is also programmed, which the datasheet advises against outside debugging (extra current, oscillator stays on).</li>
+<li><strong>USB alone won't power the card.</strong> You need the SBC, J12 or the barrel jack (≥ about 6.5 V for the AMS1117). If the barrel jack and the target both supply +5 V at the same time, two supplies are paralleled on one rail.</li>
+<li><strong>EEPROM Software Data Protection (SDP) isn't handled.</strong> If an EEPROM has had SDP enabled (some standalone programmers do this), writes are ignored and the firmware reports <code>T</code>. Adding the SDP-disable sequence would cover it.</li>
+<li><strong>ROM control polarities depend on the target PLD.</strong> The firmware comments are inconsistent (e.g. ROMOEX called both &quot;active low&quot; and &quot;high impedance&quot; when driven low). Verify against the PLD equations for each SBC.</li>
+<li><strong>Minor firmware points:</strong>
+<ul>
+<li>The receive loop starts by reading SRAM at <code>index−3</code> with <code>index = 0</code> (uint32 underflow → reads 0xFFFD–0xFFFF). That's harmless unless stale <code>XXX</code> sits at the top of SRAM.</li>
+<li>The verify loop uses a <code>float</code> counter, which is slow but correct up to 64 K.</li>
+<li><code>#include &lt;SRAM_23LC.h&gt;</code> and MegaCore pin 8 = PB0 must stay paired if the core changes.</li>
+<li>The host sends one byte per <code>write()</code> and redraws the progress bar each time. Sending in chunks would make the transfer much faster.</li>
+</ul>
+</li>
+</ol>
+</article></div></section>
+</main>
+<footer><div class="wrap"><div class="bars"></div><p>NOVAZ80, by NOVA Embedded Solutions. A hobby project, built just for fun. <a href="../index.html">The story</a> · <a href="../credits.html">Credits</a></p></div></footer>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/viewer.js" defer></script>
+<script src="../assets/js/swipe.js" defer></script>
+</body>
+</html>

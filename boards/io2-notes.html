@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>I/O 2 with LCD design notes · NOVAZ80</title>
+<meta name="description" content="Design analysis of the NOVAZ80 I/O 2 with LCD.">
+<meta name="theme-color" content="#0b0b0d">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" aria-label="Main"><div class="wrap"><a class="brand" href="../index.html">NOVAZ80</a>
+<ul><li><a href="../index.html#story">Story</a></li><li><a href="../design.html">Design</a></li><li><a href="../index.html#build">Build</a></li><li><a href="../index.html#bus">Bus</a></li><li><a href="../index.html#boards" aria-current="true">Boards</a></li></ul></div></nav>
+<main id="main">
+<section class="paper sec"><div class="wrap"><p><a class="more" href="io2.html">← I/O 2 with LCD</a></p><article class="notes"><details class="toc"><summary>Contents</summary><ul><li><a href="#s0">0. Where this board sits in the NOVAZ80 project</a></li><li><a href="#s1">1. Summary</a></li><li><a href="#s2">2. Block diagram</a></li><li><a href="#s3">3. Parts (BoM)</a></li><li><a href="#s4">4. Subsystems</a></li><li><a href="#s5">5. I/O map (from the PLD)</a></li><li><a href="#s6">6. Connectors</a></li><li><a href="#s7">7. PLD (IC1, GAL16V8) — pin use</a></li><li><a href="#s8">8. Timing notes</a></li><li><a href="#s9">9. Observations for the next revision</a></li><li><a href="#s10">10. Open questions</a></li></ul></details><h1>NOVAZ80 I/O Board 2 (PPI + LCD) — V102-IO2-0 (Rev 000)</h1>
+<p>Design analysis from <code>V102-IO2-0.net</code> (KiCad/Eeschema 9.0.7 export, 2026-11-25), the schematic (single sheet, <code>V102-IO2-0.kicad_sch</code>), the BoM and the PCB file (<code>V102-IO2-0.kicad_pcb</code>). The netlist and the PCB's pad-to-net connectivity were compared pad by pad (217 pads) and are identical. DRC: 0 violations, 0 unconnected pads, 0 footprint errors.</p>
+<p>Title block: <em>NOVA Z80 Project – v102-IO2</em>, NOVA Embedded Solutions, drawn 2023-05-22, Rev 000. No revision notes on the schematic. The only text note is &quot;BYPASS CAPACITORS&quot;.</p>
+<p>PLD: <code>V102-IO2-00.PLD</code> and <code>V102-IO2-00.jed</code>. The fuse map was decoded and matches the source equations (section 7).</p>
+<p>This is a different board from the main I/O board <code>V102-IO1-0</code> (Zilog PIO/CTC/SIO, USB serial, PS/2). The two can be fitted together: their port addresses don't overlap.</p>
+<hr />
+<h2 id="s0">0. Where this board sits in the NOVAZ80 project</h2>
+<p>A simple user-interface and parallel-I/O board. It adds:</p>
+<ul>
+<li>an <strong>82C55A PPI</strong>: ports A and B (16 lines) go to a 2×16 edge connector; port C reads <strong>8 push buttons</strong>,</li>
+<li>a <strong>20 × 4 character LCD</strong> (HD44780-compatible module) driven directly from the bus in 8-bit mode, with a contrast trimmer.</li>
+</ul>
+<p>The LCD covers most of the board's top side, so in practice this is the <strong>top board of the stack</strong> (section 6.1).</p>
+<p>It uses no interrupts, takes no part in the daisy chain, and needs nothing Z80-specific apart from <code>IORQB</code>, <code>RDB</code> and <code>WRB</code>, so it works with the Z80, 6502 and MTX CPU boards. It takes +5 V from the stack and has no power supply of its own.</p>
+<p>Status: built. Whether the LCD has been run on the Z80 SBC is still to confirm (section 10). Section 9 collects observations for the planned 4-layer revision.</p>
+<hr />
+<h2 id="s1">1. Summary</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Parallel I/O</td>
+<td>82C55A PPI: port A, port B → J5 (2×16 right-angle socket); port C ← 8 buttons</td>
+</tr>
+<tr>
+<td>Display</td>
+<td>20 × 4 character LCD module (HD44780-compatible), 8-bit bus, <code>RS</code> = A0, <code>R/W</code> = <code>WRB</code>, <code>E</code> from the PLD</td>
+</tr>
+<tr>
+<td>Buttons</td>
+<td>SW0–SW7, to +5 V, 10 k pull-downs (RN1): <strong>pressed = 1</strong> on PC0–PC7</td>
+</tr>
+<tr>
+<td>Glue</td>
+<td>GAL16V8 PLD (I/O decode, simple mode), 74LVC2G14 (<code>RSTB</code> → 82C55 <code>RESET</code> inversion)</td>
+</tr>
+<tr>
+<td>I/O ports</td>
+<td><code>24h</code>–<code>27h</code> 82C55, <code>30h</code>–<code>31h</code> LCD</td>
+</tr>
+<tr>
+<td>Interrupts</td>
+<td>None (<code>INTB</code> not used)</td>
+</tr>
+<tr>
+<td>Power</td>
+<td>+5 V from the stack (SPEC pin 2). LCD backlight wired straight to +5 V</td>
+</tr>
+<tr>
+<td>PCB</td>
+<td>100 × 100 mm, 2-layer, +5 V pour on F.Cu, GND pour on B.Cu, 0.15 mm signal tracks (0.3 mm for some power), 59 vias</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="s2">2. Block diagram</h2>
+<pre tabindex="0"><code>          ┌──────── stack bus: A0–A7, D0–D7, IORQB, RDB, WRB, RSTB, +5V ────────┐
+          │                                                                     │
+ A0–A7, IORQB ─► PLD IC1 ─┬─► 8255CS (24–27, active low) ─► 82C55 /CS
+                          └─► LCD    (30–31, active high) ─► LCD E
+
+ D0–D7 ─────────┬─► 82C55 D0–D7          (A0, A1, /RD, /WR from the bus)
+                └─► LCD d0–d7            (RS = A0, R/W = WRB)
+
+ RSTB ─► IC3 inv ─► R82 ─► 82C55 RESET (active high)
+
+ 82C55 PA0–PA7, PB0–PB7 ─► J5 odd pins (even pins GND)
+ 82C55 PC0–PC7 ◄─ SW0–SW7 to +5V, RN1 10k pull-downs to GND
+
+ RV1 10k: GND ─ wiper ─► LCD VO ─ +5V          LCD A (backlight) = +5V, K = GND
+</code></pre>
+<hr />
+<h2 id="s3">3. Parts (BoM)</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Ref</th>
+<th>Part</th>
+<th>Function</th>
+<th>Datasheet</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IC1</td>
+<td>GAL16V8, DIP-20</td>
+<td>I/O decode PLD</td>
+<td><a href="http://ww1.microchip.com/downloads/en/devicedoc/atmel-0364-pld-atf16v8b-8bq-8bql-datasheet.pdf">ATF16V8B (compatible)</a></td>
+</tr>
+<tr>
+<td>IC2</td>
+<td>82C55A, DIP-40 (maker not recorded)</td>
+<td>Programmable peripheral interface</td>
+<td><a href="https://www.renesas.com/82C55A">82C55A (Intersil/Renesas)</a>, <a href="https://www.profesores.frc.utn.edu.ar/electronica/tecnicasdigitalesii/Practicos/PlacaIO8bit/82c55.pdf">82C55A (Intel)</a></td>
+</tr>
+<tr>
+<td>IC3</td>
+<td>74LVC2G14, SOT-23-6</td>
+<td>Schmitt inverter: <code>RSTB</code> → 82C55 <code>RESET</code> (second gate unused, input grounded)</td>
+<td><a href="https://www.ti.com/lit/ds/symlink/sn74lvc2g14.pdf">SN74LVC2G14</a></td>
+</tr>
+<tr>
+<td>M1</td>
+<td>20 × 4 character LCD module (&quot;2004&quot;), 16-pin header + 4 mounting holes</td>
+<td>Display</td>
+<td><a href="https://www.sparkfun.com/datasheets/LCD/HD44780.pdf">HD44780U controller</a></td>
+</tr>
+<tr>
+<td>RV1</td>
+<td>10 k linear trimmer, Runtron RM-065 vertical</td>
+<td>LCD contrast</td>
+<td>—</td>
+</tr>
+<tr>
+<td>RN1</td>
+<td>10 k × 8, SIP-9 bussed</td>
+<td>Button pull-downs (common to GND)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>SW0–SW7</td>
+<td>Push buttons, Nidec Copal SH-7040B footprint</td>
+<td>User buttons</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J5</td>
+<td>2×16 socket, 2.54 mm, right-angle</td>
+<td>Ports A and B</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J1–J4, J11, J22, J33, J44</td>
+<td>8-way &quot;11 mm&quot; stacking sockets (bottom side)</td>
+<td>Stack bus (section 6)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C4–C8</td>
+<td>1 µF 1206</td>
+<td>+5 V bypass</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<p>The schematic's datasheet field for IC2 points to the Intel NMOS 8255A, not the 82C55A.</p>
+<hr />
+<h2 id="s4">4. Subsystems</h2>
+<h3>4.1 Address decode (IC1)</h3>
+<p>See section 7. Both selects are I/O only (<code>/IORQ</code>), 8-bit decode (A0–A7). The PLD sees <strong>no</strong> <code>/RD</code>, <code>/WR</code> or <code>/M1</code>.</p>
+<h3>4.2 82C55A PPI (IC2)</h3>
+<ul>
+<li><code>A0</code>, <code>A1</code> from the bus: <code>24h</code> port A, <code>25h</code> port B, <code>26h</code> port C, <code>27h</code> control.</li>
+<li><code>/CS</code> = PLD <code>8255CS</code>. <code>/RD</code>, <code>/WR</code> = bus <code>RDB</code>, <code>WRB</code>.</li>
+<li><code>RESET</code> (active high) = <code>RSTB</code> inverted by IC3. Reset sets all three ports to input, mode 0.</li>
+<li><strong>Port A</strong> and <strong>port B</strong> → J5 (section 6.2). Any mode is possible in principle, but modes 1 and 2 need port C bits as handshake lines, and port C is hard-wired to the buttons. In practice <strong>ports A and B are mode 0 only.</strong></li>
+<li><strong>Port C</strong> = buttons (section 4.4). Keep both halves of port C as <strong>inputs</strong>.</li>
+<li>Typical mode word: <code>89h</code> = mode 0, port A out, port B out, port C in. <code>9Bh</code> (the reset state) = everything in.</li>
+</ul>
+<h3>4.3 LCD (M1)</h3>
+<ul>
+<li>Standard 16-pin HD44780 interface, wired in <strong>8-bit mode</strong>:</li>
+</ul>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>LCD pin</th>
+<th>Signal</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 VSS</td>
+<td>GND</td>
+<td></td>
+</tr>
+<tr>
+<td>2 VDD</td>
+<td>+5 V</td>
+<td></td>
+</tr>
+<tr>
+<td>3 VO</td>
+<td>contrast</td>
+<td>RV1 wiper (RV1 ends on GND and +5 V)</td>
+</tr>
+<tr>
+<td>4 RS</td>
+<td>A0</td>
+<td>bus</td>
+</tr>
+<tr>
+<td>5 R/W</td>
+<td><code>WRB</code></td>
+<td>bus</td>
+</tr>
+<tr>
+<td>6 E</td>
+<td><code>LCD</code></td>
+<td>PLD pin 16, active high</td>
+</tr>
+<tr>
+<td>7–14 d0–d7</td>
+<td>D0–D7</td>
+<td>bus, direct</td>
+</tr>
+<tr>
+<td>15 A</td>
+<td>backlight anode</td>
+<td>+5 V direct</td>
+</tr>
+<tr>
+<td>16 K</td>
+<td>backlight cathode</td>
+<td>GND</td>
+</tr>
+<tr>
+<td>mounting holes</td>
+<td>GND</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>Ports:</strong> A0 picks the register, <code>WRB</code> picks the direction:</li>
+</ul>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Read (<code>IN</code>)</th>
+<th>Write (<code>OUT</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>30h</code></td>
+<td>busy flag (bit 7) + address counter</td>
+<td>instruction</td>
+</tr>
+<tr>
+<td><code>31h</code></td>
+<td>data (DDRAM/CGRAM)</td>
+<td>data</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><code>E</code> is high for as long as <code>/IORQ</code> is low on a <code>30h</code>/<code>31h</code> access. At 4 MHz that's about 600 ns, longer than the HD44780's 230 ns minimum <code>E</code> pulse.</li>
+<li>R/W comes from <code>WRB</code>, which on the Z80 falls and rises <strong>at the same time as <code>/IORQ</code></strong>. That leaves almost no R/W set-up or hold time around <code>E</code> (section 8). On the 6502 SBC <code>WRB</code> is a level for the whole cycle, so there the timing is fine.</li>
+<li><strong>Busy flag:</strong> reads work normally (R/W is high for the whole read), so software can poll <code>IN (30h)</code> bit 7 instead of using fixed delays.</li>
+<li><strong>20 × 4 DDRAM addresses:</strong> line 1 <code>00h</code>, line 2 <code>40h</code>, line 3 <code>14h</code>, line 4 <code>54h</code> (set address = <code>80h</code> + address).</li>
+<li><strong>Initialisation</strong> (8-bit): <code>38h</code> three times (with ≥ 4.1 ms, then ≥ 100 µs between the first ones, per the HD44780 data sheet), then <code>38h</code> function set (8-bit, 2-line mode = 4 lines on a 2004), <code>0Ch</code> display on, <code>01h</code> clear (1.52 ms), <code>06h</code> entry mode. There's no hardware reset to the LCD, so software init after every reset is the safe way.</li>
+<li><strong>Backlight:</strong> A to +5 V, K to GND, no resistor on this board. It relies on the module's own series resistor (most 2004 modules have one, often marked R8 or R9). The backlight is always on (section 9, item 5).</li>
+<li><strong>Contrast:</strong> RV1 sits at the top edge, above the LCD, so it's reachable with the board assembled.</li>
+</ul>
+<h3>4.4 Buttons (SW0–SW7)</h3>
+<ul>
+<li>Each button connects its port C line to <strong>+5 V</strong>. RN1 (10 k bussed, common pin to GND) pulls each line low.</li>
+<li><strong>Pressed = 1, released = 0.</strong> SWn → PCn (SW0 → PC0 … SW7 → PC7). Read all eight with <code>IN A,(26h)</code>.</li>
+<li>No debounce in hardware. Debounce in software (for example sample every 10–20 ms and accept a change after two equal samples).</li>
+<li>Bus-hold: some 82C55A makes (Intersil/Harris) have bus-hold circuits on the port pins that hold an input at its last level with up to a few hundred µA. A 10 k pull-down may not overcome that hold-high current, so a released button could keep reading 1. Intel's 82C55A and the Renesas MS/MQ82C55A variants have no bus-hold. Which make is fitted isn't recorded (section 9, item 3).</li>
+</ul>
+<h3>4.5 Reset</h3>
+<p><code>RSTB</code> (bus CTRL pin 1, active low, from the CPU board) → IC3 gate 1 (Schmitt inverter) → net <code>R82</code> → 82C55 <code>RESET</code> (active high). IC3's second gate has its input grounded and its output open. The LCD and the PLD have no reset.</p>
+<h3>4.6 Power</h3>
+<ul>
+<li>+5 V only, from SPEC pin 2. No regulator, no switch.</li>
+<li>Bypass: C4–C8 (1 µF 1206) for three ICs plus the LCD.</li>
+<li>Copper: +5 V pour on F.Cu, GND pour on B.Cu.</li>
+</ul>
+<hr />
+<h2 id="s5">5. I/O map (from the PLD)</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Read</th>
+<th>Write</th>
+<th>Device</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>24h</code></td>
+<td>port A</td>
+<td>port A</td>
+<td>82C55</td>
+</tr>
+<tr>
+<td><code>25h</code></td>
+<td>port B</td>
+<td>port B</td>
+<td>82C55</td>
+</tr>
+<tr>
+<td><code>26h</code></td>
+<td>port C (buttons, pressed = 1)</td>
+<td>port C (don't: inputs only)</td>
+<td>82C55</td>
+</tr>
+<tr>
+<td><code>27h</code></td>
+<td>— (82C55 control can't be read back on most makes)</td>
+<td>mode word / bit set-reset</td>
+<td>82C55</td>
+</tr>
+<tr>
+<td><code>30h</code></td>
+<td>LCD busy flag + address</td>
+<td>LCD instruction</td>
+<td>LCD</td>
+</tr>
+<tr>
+<td><code>31h</code></td>
+<td>LCD data</td>
+<td>LCD data</td>
+<td>LCD</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li>Decode is on A0–A7 only, so the map repeats for any value of A8–A15. <code>30h</code>/<code>31h</code> are fully decoded on A1–A7; <code>24h</code>–<code>27h</code> on A2–A7.</li>
+<li>6502 SBC: CPU <code>7F24</code>–<code>7F27</code> and <code>7F30</code>–<code>7F31</code>.</li>
+<li><strong>No clash</strong> with the ports known so far: Z80 SBC CTC <code>18h</code>–<code>1Bh</code>, PIO <code>20h</code>–<code>23h</code>; I/O board <code>05h</code>–<code>13h</code>; VDP board <code>00h</code>–<code>03h</code>, <code>06h</code>. The undocumented CFX board's PLD source puts its own 82C55 at <code>6Ch</code>–<code>6Fh</code>, also no clash.</li>
+<li>Not checked against the original MTX512 port map (<code>24h</code>–<code>27h</code> and <code>30h</code>–<code>31h</code> are outside the ports the NOVAZ80 MTX configuration uses so far).</li>
+</ul>
+<hr />
+<h2 id="s6">6. Connectors</h2>
+<h3>6.1 Stack bus and physical layout</h3>
+<p>One footprint per group, bottom side, same corner layout as the other boards. Every group passes through.</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Corner</th>
+<th>Connectors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Top-left</td>
+<td>J1 ADDR, J11 ADDR2</td>
+</tr>
+<tr>
+<td>Top-right</td>
+<td>J2 SPEC, J22 PROG</td>
+</tr>
+<tr>
+<td>Bottom-left</td>
+<td>J4 DATA, J44 AUX (silkscreen &quot;SPARE&quot;)</td>
+</tr>
+<tr>
+<td>Bottom-right</td>
+<td>J3 CTRL, J33 MTX</td>
+</tr>
+</tbody>
+</table></div>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Conn</th>
+<th>Name</th>
+<th>Pins 1→8</th>
+<th>Use on this board</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>J1</td>
+<td>ADDR</td>
+<td>A0 … A7</td>
+<td>A0–A7 → PLD; A0 → 82C55 A0 and LCD RS; A1 → 82C55 A1</td>
+</tr>
+<tr>
+<td>J11</td>
+<td>ADDR2</td>
+<td>A15 … A8 (reversed)</td>
+<td>Pass-through</td>
+</tr>
+<tr>
+<td>J4</td>
+<td>DATA</td>
+<td>D0 … D7</td>
+<td>82C55 and LCD</td>
+</tr>
+<tr>
+<td>J3</td>
+<td>CTRL</td>
+<td>RSTB, CLK, M1B, MREQB, IORQB, RDB, WRB, INTB</td>
+<td>RSTB → IC3 → 82C55 RESET. IORQB → PLD. RDB → 82C55. WRB → 82C55 and LCD R/W. CLK, M1B, MREQB, INTB pass-through</td>
+</tr>
+<tr>
+<td>J2</td>
+<td>SPEC</td>
+<td>GND, +5V, VDPINTB, IEO1, IEO2, 4M, OUT0, KBDRST</td>
+<td>+5 V <strong>in</strong>. Everything else pass-through</td>
+</tr>
+<tr>
+<td>J22</td>
+<td>PROG</td>
+<td>–, ROM7, BUSRQ, ROMWEX, ROMCSX, RESX, ROMOEX, PWR</td>
+<td>Pass-through only (PWR carries 12 V from the CPU board)</td>
+</tr>
+<tr>
+<td>J33</td>
+<td>MTX</td>
+<td>P0 P1 P2 P3 R0 R1 R2 CPM</td>
+<td>Pass-through</td>
+</tr>
+<tr>
+<td>J44</td>
+<td>AUX</td>
+<td>8 × not connected</td>
+<td>Pass-through</td>
+</tr>
+</tbody>
+</table></div>
+<p>Physical layout (front side):</p>
+<ul>
+<li>The <strong>LCD module</strong> covers roughly the top two-thirds of the board (about 99 × 61 mm on a 100 × 100 mm board), on its four GND mounting holes. <strong>IC1 (GAL), IC2 (82C55), RN1 and J5 sit underneath it.</strong> The LCD has to come off to swap or reprogram the GAL.</li>
+<li>The 8 buttons are in a row along the bottom edge, below the LCD. RV1 is at the top edge, above it.</li>
+<li>J5 points out of the <strong>left edge</strong>, under the LCD.</li>
+<li>With stacking sockets on the bottom and the LCD on top, nothing can stack above this board.</li>
+</ul>
+<h3>6.2 J5 — ports A and B (2×16 right-angle socket)</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Pins</th>
+<th>Signal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1, 3, 5 … 15</td>
+<td>PA0, PA1 … PA7</td>
+</tr>
+<tr>
+<td>17, 19 … 31</td>
+<td>PB0, PB1 … PB7</td>
+</tr>
+<tr>
+<td>2, 4 … 32</td>
+<td>GND</td>
+</tr>
+</tbody>
+</table></div>
+<p>No +5 V, no port C.</p>
+<h3>6.3 Other</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Ref</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M1</td>
+<td>LCD module, 16-pin single row (section 4.3)</td>
+</tr>
+<tr>
+<td>RV1</td>
+<td>LCD contrast</td>
+</tr>
+<tr>
+<td>SW0–SW7</td>
+<td>Buttons → PC0–PC7</td>
+</tr>
+</tbody>
+</table></div>
+<p>No jumpers.</p>
+<hr />
+<h2 id="s7">7. PLD (IC1, GAL16V8) — pin use</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Pin</th>
+<th>Signal</th>
+<th>Dir</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>A0</td>
+<td>in</td>
+<td></td>
+</tr>
+<tr>
+<td>2–8</td>
+<td>A1–A7</td>
+<td>in</td>
+<td><code>FIELD ADDR = [A7..A0]</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td>IORQB</td>
+<td>in</td>
+<td></td>
+</tr>
+<tr>
+<td>11</td>
+<td>—</td>
+<td>in</td>
+<td>not connected (simple mode, plain input)</td>
+</tr>
+<tr>
+<td>12, 13, 14</td>
+<td>—</td>
+<td>(input)</td>
+<td>not connected, spare</td>
+</tr>
+<tr>
+<td>15</td>
+<td>8255CS</td>
+<td>out</td>
+<td>82C55 /CS, active low</td>
+</tr>
+<tr>
+<td>16</td>
+<td>LCD</td>
+<td>out</td>
+<td>LCD E, <strong>active high</strong></td>
+</tr>
+<tr>
+<td>17, 18, 19</td>
+<td>—</td>
+<td>(input)</td>
+<td>not connected, spare</td>
+</tr>
+</tbody>
+</table></div>
+<p>Seven pins are spare. <code>RDB</code>, <code>WRB</code> and <code>M1B</code> are on the bus but not routed to the PLD.</p>
+<p>Equations (WinCUPL, <code>Device g16v8a</code>; the <code>.jed</code> is simple mode, <code>g16v8as</code>):</p>
+<pre tabindex="0"><code>LCD      = ADDR:[30..31] &amp; !IORQB ;   /* E, active high: 30h-31h        */
+!8255CS  = ADDR:[24..27] &amp; !IORQB ;   /* /CS, active low: 24h-27h       */
+</code></pre>
+<ul>
+<li>The fuse map (<code>.jed</code>, built 2023-07-22) was decoded: one product term per output, both match the source. <code>LCD</code> is active high (XOR bit 1), <code>8255CS</code> active low (XOR bit 0). Pins 15 and 16 are outputs, the other six I/O pins inputs. Simple mode (SYN = 1, AC0 = 0), signature &quot;00&quot;. The <code>.PLD</code> file was saved later (2023-07-26) with the same logic.</li>
+<li>Source comment: &quot;4 addresses after the lcd a,b,c,ctrl&quot;. The 82C55's ports actually sit <strong>below</strong> the LCD (<code>24h</code> &lt; <code>30h</code>).</li>
+<li>Neither select is qualified by <code>/RD</code>, <code>/WR</code> or <code>/M1</code>. The 82C55 doesn't need it (it only acts on <code>/RD</code> or <code>/WR</code>), but the LCD does: section 9, item 1.</li>
+</ul>
+<hr />
+<h2 id="s8">8. Timing notes</h2>
+<ul>
+<li><strong>Decode delay:</strong> GAL16V8 propagation (speed grade not recorded, typically 10–25 ns) between <code>/IORQ</code>/address and the selects. Z80 I/O cycles have an automatic wait state, so this is comfortable at 4 MHz.</li>
+<li><strong>LCD E pulse:</strong> about 600 ns at 4 MHz (<code>/IORQ</code> low time), against 230 ns minimum. Cycle time between accesses is far above the 500 ns minimum.</li>
+<li><strong>LCD R/W set-up and hold on the Z80</strong> (HD44780U at 5 V: t<sub>AS</sub> ≥ 40 ns, t<sub>AH</sub> ≥ 10 ns):
+<ul>
+<li><em>Start of a write:</em> <code>/WR</code> and <code>/IORQ</code> fall together. E rises one PLD delay later, so R/W set-up is only 10–25 ns.</li>
+<li><em>End of a write:</em> <code>/WR</code> and <code>/IORQ</code> rise together. R/W goes <strong>high (read) one PLD delay before E falls</strong>, and the HD44780 latches write data on E's falling edge. Hold is negative.</li>
+<li><code>RS</code> (A0) and the data are fine: the Z80 keeps the address valid for the whole cycle and write data from T1 until after <code>/WR</code> rises.</li>
+<li>Many HD44780 clones tolerate this, but it's outside the data sheet (section 9, item 2).</li>
+</ul>
+</li>
+<li><strong>LCD reads:</strong> data out within 160 ns of E rising. The Z80 samples on T3's falling edge, several hundred ns later. Fine.</li>
+<li><strong>82C55A writes</strong> latch on <code>/WR</code> rising. <code>/CS</code> rises one PLD delay after <code>/IORQ</code>, so <code>/CS</code> and A0/A1 are held past <code>/WR</code> as the 82C55 requires. Z80 write data stays valid after <code>/WR</code> rises.</li>
+<li><strong>Interrupt acknowledge:</strong> in a Z80 INTA cycle (<code>/M1</code> + <code>/IORQ</code> low), the address bus carries the PC. If its low byte is <code>30h</code> or <code>31h</code>, E rises with R/W high and the LCD drives the data bus while the interrupting device puts its vector there (section 9, item 1). The 82C55 also sees <code>/CS</code>, but <code>/RD</code> stays high, so it stays off the bus.</li>
+<li><strong>6502 SBC:</strong> <code>IORQB</code> is PHI2-qualified (about 500 ns) and <code>WRB</code> is the CPU's R/W level for the whole cycle, so R/W set-up and hold around E are correct. The 6502 never does an INTA cycle.</li>
+</ul>
+<hr />
+<h2 id="s9">9. Observations for the next revision</h2>
+<p>Most important first.</p>
+<ol>
+<li><strong>LCD responds to interrupt acknowledge cycles.</strong> E isn't qualified by <code>/M1</code> (or by <code>/RD</code>/<code>/WR</code>). In a Z80 machine using interrupts, each interrupt has about a 2-in-256 chance of being acknowledged while the PC's low byte is <code>30h</code>/<code>31h</code>. With a 50 Hz VDP interrupt that's about once every 2–3 seconds. The LCD then drives D0–D7 while the interrupting device puts its vector on the bus. In <strong>IM 2</strong> (or IM 0) that gives a corrupt vector and a jump to a random address; in IM 1 the vector is ignored and only the bus contention remains. The MTX configuration (IM 2, CTC vectors) is the most exposed.
+<ul>
+<li>Fix: route <code>RDB</code> and <code>WRB</code> (or <code>M1B</code>) to spare PLD inputs and use <code>LCD = ADDR:[30..31] &amp; !IORQB &amp; (!RDB # !WRB)</code>. INTA cycles have neither <code>/RD</code> nor <code>/WR</code>. Seven PLD pins are free, so on the current board this is two wires and a new <code>.jed</code>.</li>
+<li><em>To confirm:</em> whether the LCD has run on the Z80 SBC or the MTX with interrupts enabled.</li>
+</ul>
+</li>
+<li><strong>LCD R/W timing from <code>WRB</code> on the Z80</strong> (section 8). Two cures:
+<ul>
+<li>R/W = <strong>A1</strong> (stable for the whole cycle): ports <code>30h</code> write instruction, <code>31h</code> write data, <code>32h</code> read status, <code>33h</code> read data. Widen the decode to <code>30h</code>–<code>33h</code>.</li>
+<li>Or keep <code>WRB</code> and make E end before <code>/WR</code> rises (harder in a GAL with no clock). A1 is simpler.</li>
+</ul>
+</li>
+<li><strong>Buttons against the 82C55 port pins.</strong>
+<ul>
+<li><strong>Bus-hold:</strong> with an Intersil/Harris 82C55A, the hold-high current (up to a few hundred µA) can beat a 10 k pull-down, and a released button may read as pressed. If that's ever seen, it's this. Wire buttons to <strong>GND with pull-ups</strong> (or use 2k2 pull-downs) and record the 82C55 make.</li>
+<li><strong>Short risk:</strong> a button ties its line straight to +5 V. If port C (or one half of it) is ever set as an output driving low, pressing the button shorts the output. It can happen through a wrong mode word, or through random writes to <code>27h</code> while the programmer holds the bus on the 6502 SBC (6502 document, section 4.9). <code>RESX</code> → <code>RSTB</code> resets the 82C55 afterwards, which sets everything back to inputs. A 1 k series resistor per button, or buttons to GND, removes the risk.</li>
+<li><strong>Handshake modes lost:</strong> port C is the only source of the 82C55's mode 1/2 handshakes and <code>INTR</code> lines, so ports A and B are mode 0 only. Putting the buttons on port B and the handshakes on port C would keep those modes available.</li>
+</ul>
+</li>
+<li><strong>No interrupt from the buttons.</strong> The CPU has to poll <code>26h</code>. If wanted, a button-change interrupt through the 82C55's mode 1 <code>INTR</code> (needs item 3's re-arrangement) or a separate open-drain <code>INTB</code> driver would do it.</li>
+<li><strong>LCD backlight always on, no resistor on the board.</strong> It depends on the module's own series resistor, which varies between makes (some have 0 Ω, some none fitted). Add a footprint for a series resistor and, ideally, a transistor switch on a spare 82C55 line or PLD-decoded latch bit so software can dim or turn it off. Note the backlight current (typically 20–100 mA) in the stack's power budget.</li>
+<li><strong>Board must be top of the stack, and the LCD hides the GAL.</strong> Reprogramming or swapping IC1 (or IC2) means removing the LCD. Move the GAL out from under the LCD, or socket the LCD on a header so it lifts off easily.</li>
+<li><strong>Decode slack.</strong> Only 2 of the GAL's 8 outputs are used. A latch for the backlight, LCD reset/power, or a second LCD E (for 40 × 4 modules that use two controllers) could be added at no cost.</li>
+<li><strong>Decoupling.</strong> Five 1 µF caps for three ICs plus the LCD is adequate here, but add 100 nF at the 82C55 and GAL as on the other boards' revision notes.</li>
+<li><strong>Floating pins.</strong> PLD pin 11 and the six unused I/O pins are unconnected. An ATF16V8B has pin keepers and Lattice GAL16V8D has internal pull-ups, so this is harmless with those makes. Tie pin 11 to GND or +5 V anyway.</li>
+<li><strong>Housekeeping:</strong>
+<ul>
+<li>The schematic's IC2 datasheet link is the Intel NMOS 8255A, not the 82C55A. The 82C55 make and the GAL speed grade aren't recorded.</li>
+<li>The PLD source's <code>Company</code> field is <code>xxx</code>, and its comment says the 82C55 is <em>after</em> the LCD (it's before).</li>
+<li>The folder holds <code>PHONO-SRC-00A-erc.rpt</code> (the name left over from another project, as on the other boards), an older <code>V102-IO2-0.kicad_sch-bak</code>, and two KiCad lock files (<code>~V102-IO2-0.kicad_pcb.lck</code>, <code>~V102-IO2-0.kicad_sch.lck</code>), so the project was open in KiCad when these files were read.</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="s10">10. Open questions</h2>
+<ul>
+<li>Has the LCD been run on the Z80 SBC and the MTX, and with interrupts enabled (items 1 and 2)?</li>
+<li>Which make of 82C55A is fitted, and does a released button always read 0 (item 3)?</li>
+<li>Which 2004 module is fitted (controller: HD44780, ST7066U, SPLC780…) and does it have a backlight series resistor?</li>
+<li>Ports <code>24h</code>–<code>27h</code> and <code>30h</code>–<code>31h</code> against the original MTX512 port map, in case MTX software or expansions expect something there.</li>
+</ul>
+</article></div></section>
+</main>
+<footer><div class="wrap"><div class="bars"></div><p>NOVAZ80, by NOVA Embedded Solutions. A hobby project, built just for fun. <a href="../index.html">The story</a> · <a href="../credits.html">Credits</a></p></div></footer>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/viewer.js" defer></script>
+<script src="../assets/js/swipe.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+Name     v102-6502-00 ;
+PartNo   xx ;
+Date     14/7/23 ;
+Revision 001 ;
+Designer Nigel ;
+Company  xxx ;
+Assembly None ;
+Location  ;
+Device   g20v8a;	// test this with g22v10 cos g20v8a doesnt work with protius 
+
+
+/* *************** INPUT PINS *********************/
+
+PIN	1	=	CLK	;
+PIN	2	=	A0	; 
+PIN	3	=	A1	; 
+PIN	4	=	A2	;	  
+PIN	5	=	A3	; 
+PIN	6	=	A4	; 
+PIN	7	=	A5	;	  
+PIN	8	=	A6	;	 
+PIN	9	=	A7	;	
+PIN	10	=	A8	;
+PIN	11	=	A9	;	
+
+PIN	13	=	A15	;
+PIN	14	=	A14	;
+
+PIN	20	=	A13	;
+PIN	21	=	A12	;
+PIN	22	=	A11	;
+PIN	23	=	A10	;
+
+PIN	15	=	ROMCSX	;
+
+FIELD ADDR	= [A15..A0];
+
+/* *************** OUTPUT PINS *********************/
+
+PIN 19		=	RAMCSB		; // xxxx
+PIN 18		=	ROMCSB		; // xxxx
+PIN 17		=	IORQB		; // xxxx
+PIN 16		=	VIACSB		; // xxxx
+
+/* *************** INTERMEDIATE EQUATIONS **************/	
+
+IO          =   ADDR:[7F00..7FEF]                                       ;
+
+/* *************** LOGIC EQUATIONS *********************/	
+
+!RAMCSB     =   ADDR:[0000..7fff]    &   !IO     &   !ROMCSX            ;
+// 0000-7eff (lower 32k ram space with iorq and via not active) -  and external romcsx not active
+
+!IORQB      =	IO                  &   CLK                             ; 
+// 7F00-7FEF and external romcsx not active - but only on second half of cpu clock cycle (pos)
+
+!VIACSB     =	ADDR:[7FF0..7FFF]   &   !ROMCSX                         ; 
+// 7FF0-7FFF and external romcsx not active
+
+!ROMCSB     =   ADDR:[8000..FFFF]   #   ROMCSX                          ; 
+// 8000-FFFF or external romcsx is actove
+
+

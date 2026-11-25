@@ -1,0 +1,1393 @@
+{
+ "z80": {
+  "ref": "V102-Z80-1",
+  "how": [
+   "ATF16V8B decodes A15 and /MREQ into ROM (0000–7FFF) and RAM (8000–FFFF), and A2–A7 with /IORQ into CTC (18h) and PIO (20h)",
+   "MAX811, reset button, keyboard reset and programmer RESX merge in the PLD onto bus RSTB",
+   "IM 2 daisy chain CTC → PIO → IEO2; IEO1 pulled up so it works alone or behind the I/O board",
+   "Powers the stack: 12 V jack, switch, buck module, +5 V onto SPEC pin 2. Clock from its 4 MHz can or bus 4M"
+  ],
+  "won": [
+   "ROM /WE and /OE brought out to the bus: the CPU can never write the EEPROM, but the programmer can, with no chip pulling",
+   "Programmer uses /BUSRQ rather than /WAIT, so the Z80 genuinely floats its address, data and strobes",
+   "Rev 001 moved reset to a MAX811 for a clean power-on reset",
+   "A complete minimal computer on its own, and the base of every Z80 stack"
+  ],
+  "next": [
+   "Gate memory /OE with /RD: ROM and RAM drive the bus during writes",
+   "Pull-ups on /MREQ, /IORQ, /RD, /WR while the programmer holds the bus",
+   "100 nF at every IC; consider bus buffers for a full stack",
+   "12 V on PROG pin 8 next to ROMOEX; no input protection"
+  ],
+  "parts": [
+   [
+    "1",
+    "IC1",
+    "Z80 CPU"
+   ],
+   [
+    "2",
+    "IC2",
+    "28C256 32 K EEPROM (ROM)"
+   ],
+   [
+    "3",
+    "IC3",
+    "62256 32 K SRAM"
+   ],
+   [
+    "4",
+    "IC5",
+    "Z80 CTC counter/timer"
+   ],
+   [
+    "5",
+    "IC4",
+    "Z80 PIO parallel I/O"
+   ],
+   [
+    "6",
+    "IC6",
+    "ATF16V8B decode and reset PLD"
+   ],
+   [
+    "7",
+    "IC7",
+    "MAX811 reset supervisor"
+   ],
+   [
+    "8",
+    "XT1",
+    "4 MHz oscillator"
+   ],
+   [
+    "9",
+    "JJP1",
+    "CPU clock: bus 4M or local OSC"
+   ],
+   [
+    "10",
+    "PW1",
+    "12 V → 5 V buck module (powers the stack)"
+   ],
+   [
+    "11",
+    "PL1, SW2",
+    "DC input jack and power switch"
+   ],
+   [
+    "12",
+    "SW1",
+    "Reset button"
+   ],
+   [
+    "13",
+    "J1",
+    "PIO ports A and B"
+   ],
+   [
+    "14",
+    "J6",
+    "CTC timer header"
+   ],
+   [
+    "15",
+    "JA…",
+    "Stack-bus corner sockets"
+   ]
+  ],
+  "spots": [
+   [
+    1,
+    27.74,
+    39.1
+   ],
+   [
+    2,
+    80.13,
+    39.1
+   ],
+   [
+    3,
+    80.13,
+    57.52
+   ],
+   [
+    4,
+    27.06,
+    17.01
+   ],
+   [
+    5,
+    27.74,
+    61.18
+   ],
+   [
+    6,
+    75.05,
+    72.46
+   ],
+   [
+    7,
+    70.35,
+    86.84
+   ],
+   [
+    8,
+    50.19,
+    83.08
+   ],
+   [
+    9,
+    35.99,
+    5.36
+   ],
+   [
+    10,
+    85.51,
+    17.58
+   ],
+   [
+    11,
+    69.48,
+    5.64
+   ],
+   [
+    11,
+    58.16,
+    12.12
+   ],
+   [
+    12,
+    16.89,
+    94.74
+   ],
+   [
+    13,
+    49.81,
+    96.8
+   ],
+   [
+    14,
+    49.9,
+    17.58
+   ],
+   [
+    15,
+    14.88,
+    4.23
+   ],
+   [
+    15,
+    85.03,
+    4.23
+   ],
+   [
+    15,
+    3.26,
+    84.3
+   ],
+   [
+    15,
+    96.64,
+    84.3
+   ]
+  ]
+ },
+ "6502": {
+  "ref": "V102-6502-2",
+  "how": [
+   "W65C02S at 1 MHz: the 4 MHz can drives bus CLK, a 74HC74 divides by 4 for PHI2",
+   "ROM 8000–FFFF, RAM 0000–7EFF, VIA at 7FF0–7FFF",
+   "PLD maps CPU 7F00–7FEF to a Z80-style I/O cycle on port 00–EF: IORQB during PHI2 high, RDB/WRB from R/W",
+   "BUSRQ drives the CPU's BE pin, three-stating it at once; ROMCSX forces the ROM and masks RAM and VIA"
+  ],
+  "won": [
+   "Bridged two CPU families: 6502 memory-mapped I/O presented as Z80 ports, so the same I/O and VDP boards work unchanged",
+   "Z80-peripheral write timing studied on the scope against the 6502 cycle; PIO writes confirmed working",
+   "Bus hand-over without BUSAK: BE releases the 65C02 immediately"
+  ],
+  "next": [
+   "RAM and VIA both drive the bus on VIA reads: exclude 7FF0–7FFF from RAM",
+   "Mask IORQB with ROMCSX while programming; pull R/W up",
+   "Zilog interrupts need an acknowledge and RETI the 6502 can't give (CTC loops)",
+   "PLD full: move to ATF22V10. RDY, NMIB on resistors; decoupling"
+  ],
+  "parts": [
+   [
+    "1",
+    "IC1",
+    "W65C02S CPU (1 MHz)"
+   ],
+   [
+    "2",
+    "IC2",
+    "28C256 ROM, 8000–FFFF"
+   ],
+   [
+    "3",
+    "IC3",
+    "62256 RAM, 0000–7EFF"
+   ],
+   [
+    "4",
+    "IC4",
+    "W65C22 VIA, 7FF0–7FFF"
+   ],
+   [
+    "5",
+    "IC5",
+    "ATF20V8B decode and bus-translation PLD"
+   ],
+   [
+    "6",
+    "X1",
+    "4 MHz oscillator (bus CLK)"
+   ],
+   [
+    "7",
+    "IC8",
+    "74HC74 ÷4 for PHI2"
+   ],
+   [
+    "8",
+    "IC6",
+    "74LVC2G14 RDB and RESX inverters"
+   ],
+   [
+    "9",
+    "IC7",
+    "MAX811 reset supervisor"
+   ],
+   [
+    "10",
+    "PW1",
+    "Buck module → +5 V for the stack"
+   ],
+   [
+    "11",
+    "PL1, SW2",
+    "DC input jack and power switch"
+   ],
+   [
+    "12",
+    "SW1",
+    "Reset button"
+   ],
+   [
+    "13",
+    "J1",
+    "VIA ports A and B"
+   ],
+   [
+    "14",
+    "JA…",
+    "Stack-bus corner sockets"
+   ]
+  ],
+  "spots": [
+   [
+    1,
+    71.79,
+    39.76
+   ],
+   [
+    2,
+    21.98,
+    39.76
+   ],
+   [
+    3,
+    21.98,
+    60.62
+   ],
+   [
+    4,
+    71.79,
+    60.62
+   ],
+   [
+    5,
+    24.57,
+    16.54
+   ],
+   [
+    6,
+    21.31,
+    77.82
+   ],
+   [
+    7,
+    19.19,
+    90.23
+   ],
+   [
+    8,
+    83.59,
+    89.38
+   ],
+   [
+    9,
+    77.16,
+    94.64
+   ],
+   [
+    10,
+    84.45,
+    19.64
+   ],
+   [
+    11,
+    67.27,
+    8.18
+   ],
+   [
+    11,
+    58.16,
+    12.12
+   ],
+   [
+    12,
+    41.17,
+    4.14
+   ],
+   [
+    13,
+    29.65,
+    95.39
+   ],
+   [
+    14,
+    14.88,
+    4.23
+   ],
+   [
+    14,
+    85.03,
+    4.23
+   ],
+   [
+    14,
+    3.26,
+    84.3
+   ],
+   [
+    14,
+    96.64,
+    84.3
+   ]
+  ]
+ },
+ "mtx": {
+  "ref": "V102-MTX-2",
+  "how": [
+   "OUT (00h) latches RAM page P0–P3, ROM page R0–R2 and CPM into a 74AHC273, clocked by the VDP board's OUT0",
+   "PLD maps OS ROM at 0000–1FFF, paged ROMs at 2000–3FFF, paged RAM above; CPM = 1 gives all-RAM",
+   "One 28C256 holds blocks A | B | n | C; ROM page 6 maps the ROMx expansion, page 7 an off-board cartridge",
+   "No oscillator: the CPU clock is bus 4M from the VDP board"
+  ],
+  "won": [
+   "Exact MTX512 memory and I/O map: original BIOS, BASIC and games run unmodified",
+   "Four 8 K ROMs packed into one EEPROM; PLD rev 2 added ROMA13 to reclaim the spare block",
+   "SW3 PROG TARGET lets one programmer burn either the main ROM or ROMx",
+   "Best-decoupled board of the family (seven 100 nF)"
+  ],
+  "next": [
+   "Gate ROM selects with /RD: ROM drives the bus on writes",
+   "Add a pull-down on ROMCSX; mask decode while programming",
+   "CP/M mode with R = 6 loses 16 K (PLD fix)",
+   "Local clock option; 74AHCT273 for input levels; check map against MTX512 docs"
+  ],
+  "parts": [
+   [
+    "1",
+    "IC1",
+    "Z80 CPU (clocked from bus 4M)"
+   ],
+   [
+    "2",
+    "IC2",
+    "Main ROM: blocks A | B | n | C"
+   ],
+   [
+    "3",
+    "IC5",
+    "ROMx expansion ROM (optional)"
+   ],
+   [
+    "4",
+    "IC3",
+    "RAM 32 K (MTX500)"
+   ],
+   [
+    "5",
+    "IC4",
+    "RAM2 32 K (MTX512)"
+   ],
+   [
+    "6",
+    "IC7",
+    "74AHC273 page register (port 00h)"
+   ],
+   [
+    "7",
+    "IC6",
+    "ATF20V8B memory-map PLD"
+   ],
+   [
+    "8",
+    "IC8, IC9",
+    "MAX811 reset and RESX merge"
+   ],
+   [
+    "9",
+    "SW3",
+    "PROG TARGET: main ROM or ROMx"
+   ],
+   [
+    "10",
+    "J2–J4",
+    "ROMx enable and A13/A14 jumpers"
+   ],
+   [
+    "11",
+    "PW1",
+    "Buck module → +5 V for the stack"
+   ],
+   [
+    "12",
+    "PL1, SW2",
+    "DC input jack and power switch"
+   ],
+   [
+    "13",
+    "SW1",
+    "Reset button"
+   ],
+   [
+    "14",
+    "JA…",
+    "Stack-bus corner sockets"
+   ]
+  ],
+  "spots": [
+   [
+    1,
+    71.4,
+    44.25
+   ],
+   [
+    2,
+    23.32,
+    59.54
+   ],
+   [
+    3,
+    29.65,
+    82.43
+   ],
+   [
+    4,
+    23.32,
+    25.36
+   ],
+   [
+    5,
+    23.32,
+    40.55
+   ],
+   [
+    6,
+    71.4,
+    75.69
+   ],
+   [
+    7,
+    71.4,
+    61.82
+   ],
+   [
+    8,
+    30.81,
+    5.13
+   ],
+   [
+    8,
+    48.46,
+    26.69
+   ],
+   [
+    9,
+    74.86,
+    94.87
+   ],
+   [
+    10,
+    38.58,
+    95.54
+   ],
+   [
+    10,
+    4.03,
+    14.91
+   ],
+   [
+    11,
+    87.62,
+    20.7
+   ],
+   [
+    12,
+    50.1,
+    6.08
+   ],
+   [
+    12,
+    66.03,
+    8.93
+   ],
+   [
+    13,
+    38.96,
+    6.17
+   ],
+   [
+    14,
+    14.88,
+    4.27
+   ],
+   [
+    14,
+    85.03,
+    4.27
+   ],
+   [
+    14,
+    3.26,
+    85.19
+   ],
+   [
+    14,
+    96.64,
+    85.19
+   ]
+  ]
+ },
+ "io1": {
+  "ref": "V102-IO1-0",
+  "how": [
+   "MTX-style map: CTC 08h, SIO 0Ch, PIO 10h, strobes and port C latch 05h–07h",
+   "Head of the daisy chain: CTC → SIO → PIO → IEO1 into the CPU board. VDP interrupt on CTC ch0",
+   "24 MHz ÷ 13 = 1.846 MHz into CTC ch2, which clocks the SIO: 115 200 down to 4 800 baud via USB or DB9",
+   "PS/2 keyboard shifted in by two 74HC595s; MTX keyboard strobes on J6"
+  ],
+  "won": [
+   "Hardware PS/2 receiver: an RC timeout 100 µs after the last clock latches the byte to the PIO and interrupts. No bit-banging",
+   "Re-synchronises on every frame, so a noise edge corrupts one key at most",
+   "JP1 lets any logic family of 74x193 give the right baud division",
+   "One board serves Z80, 6502 and MTX machines"
+  ],
+  "next": [
+   "DB9 is logic level only: add an RS-232 transceiver",
+   "1.8432 MHz oscillator to replace 24 MHz + '193 and free baud from bus CLK",
+   "PS/2 pull-ups; tie off floating inputs; reset for port C",
+   "Decoupling; use SIO channel A; buffer the keyboard cable"
+  ],
+  "parts": [
+   [
+    "1",
+    "IC3",
+    "Z84C40 SIO serial (0Ch)"
+   ],
+   [
+    "2",
+    "IC2",
+    "Z84C30 CTC (08h)"
+   ],
+   [
+    "3",
+    "IC1",
+    "Z84C20 PIO (10h)"
+   ],
+   [
+    "4",
+    "IC4",
+    "GAL16V8 I/O decode"
+   ],
+   [
+    "5",
+    "IC10",
+    "FT232RL USB serial"
+   ],
+   [
+    "6",
+    "XT1",
+    "24 MHz baud oscillator"
+   ],
+   [
+    "7",
+    "IC11",
+    "74LS193 ÷13 baud divider"
+   ],
+   [
+    "8",
+    "IC5, IC6",
+    "74HC595 PS/2 shift registers"
+   ],
+   [
+    "9",
+    "IC8",
+    "74HC574 port C latch"
+   ],
+   [
+    "10",
+    "J10, J12",
+    "USB mini-B and DB9 serial"
+   ],
+   [
+    "11",
+    "SW1",
+    "Serial receive: USB or DB9"
+   ],
+   [
+    "12",
+    "JP1, JP2",
+    "Baud ÷13/÷12 and 24 MHz/4M source"
+   ],
+   [
+    "13",
+    "J5",
+    "PS/2 keyboard"
+   ],
+   [
+    "14",
+    "J6",
+    "MTX keyboard"
+   ],
+   [
+    "15",
+    "J7, J9",
+    "Port B and port C headers"
+   ],
+   [
+    "16",
+    "J8",
+    "CTC timer header"
+   ],
+   [
+    "17",
+    "J1…",
+    "Stack-bus corner sockets"
+   ]
+  ],
+  "spots": [
+   [
+    1,
+    38.48,
+    33.56
+   ],
+   [
+    2,
+    38.0,
+    54.72
+   ],
+   [
+    3,
+    38.48,
+    76.07
+   ],
+   [
+    4,
+    13.53,
+    16.11
+   ],
+   [
+    5,
+    5.76,
+    32.7
+   ],
+   [
+    6,
+    81.57,
+    18.78
+   ],
+   [
+    7,
+    77.64,
+    37.37
+   ],
+   [
+    8,
+    79.27,
+    78.84
+   ],
+   [
+    8,
+    79.37,
+    65.78
+   ],
+   [
+    9,
+    76.78,
+    52.81
+   ],
+   [
+    10,
+    34.07,
+    5.53
+   ],
+   [
+    10,
+    56.62,
+    6.48
+   ],
+   [
+    11,
+    45.49,
+    17.92
+   ],
+   [
+    12,
+    67.75,
+    19.35
+   ],
+   [
+    12,
+    91.84,
+    18.11
+   ],
+   [
+    13,
+    64.01,
+    91.13
+   ],
+   [
+    14,
+    41.27,
+    95.9
+   ],
+   [
+    15,
+    95.68,
+    37.65
+   ],
+   [
+    15,
+    95.68,
+    59.1
+   ],
+   [
+    16,
+    4.51,
+    66.35
+   ],
+   [
+    17,
+    14.88,
+    3.91
+   ],
+   [
+    17,
+    85.03,
+    3.91
+   ],
+   [
+    17,
+    3.26,
+    85.13
+   ],
+   [
+    17,
+    96.64,
+    85.13
+   ]
+  ]
+ },
+ "vdp": {
+  "ref": "V102-VDP-1",
+  "how": [
+   "TMS9929A (component) or TMS9918A (composite) VDP at ports 01h/02h, outputs on RCA sockets",
+   "16 K VRAM in one 62256 SRAM behind three 74HC574 latches",
+   "SN76489 sound (03h/06h) at 4 MHz, AC-coupled to RCA",
+   "Drives bus 4M (the MTX's CPU clock) and pulses OUT0 on OUT (00h) for the MTX page register"
+  ],
+  "won": [
+   "Replaced obsolete 4116 DRAMs: row latch on RAS, column latch on CAS, write-data latch, all on one SRAM",
+   "A Schmitt-inverter delay chain puts the column-latch edge where the VDP's address is valid",
+   "Same video and sound chips as the MTX512, so software is compatible"
+  ],
+  "next": [
+   "HCT parts where NMOS VDP outputs drive HC inputs",
+   "Video buffers with 75 Ω matching; bigger audio coupling cap",
+   "Mute sound at reset; 100 nF decoupling",
+   "VDP registers can be hit while the programmer holds the bus"
+  ],
+  "parts": [
+   [
+    "1",
+    "IC1",
+    "TMS9929A video display processor"
+   ],
+   [
+    "2",
+    "Y1",
+    "10.7386 MHz VDP crystal"
+   ],
+   [
+    "3",
+    "IC5",
+    "62256 SRAM as 16 K VRAM"
+   ],
+   [
+    "4",
+    "IC3",
+    "VRAM row-address latch (RAS)"
+   ],
+   [
+    "5",
+    "IC4",
+    "VRAM column-address latch (CAS)"
+   ],
+   [
+    "6",
+    "IC2",
+    "VRAM write-data latch"
+   ],
+   [
+    "7",
+    "IC6",
+    "74HC14 timing-adjust delay chain"
+   ],
+   [
+    "8",
+    "IC8",
+    "SN76489 sound generator"
+   ],
+   [
+    "9",
+    "IC9",
+    "74HC574 sound data latch"
+   ],
+   [
+    "10",
+    "IC7",
+    "GAL16V8 I/O decode"
+   ],
+   [
+    "11",
+    "XT1",
+    "4 MHz oscillator (sound and bus 4M)"
+   ],
+   [
+    "12",
+    "C1, C2",
+    "VDP sync trimmers"
+   ],
+   [
+    "13",
+    "J1–J4",
+    "RCA outputs: audio, B-Y, Y, R-Y"
+   ],
+   [
+    "14",
+    "JA…",
+    "Stack-bus corner sockets"
+   ]
+  ],
+  "spots": [
+   [
+    1,
+    49.29,
+    27.06
+   ],
+   [
+    2,
+    29.47,
+    12.19
+   ],
+   [
+    3,
+    72.48,
+    52.3
+   ],
+   [
+    4,
+    37.52,
+    44.72
+   ],
+   [
+    5,
+    37.52,
+    72.26
+   ],
+   [
+    6,
+    37.52,
+    58.45
+   ],
+   [
+    7,
+    64.25,
+    65.45
+   ],
+   [
+    8,
+    65.4,
+    78.41
+   ],
+   [
+    9,
+    37.52,
+    85.7
+   ],
+   [
+    10,
+    51.5,
+    10.08
+   ],
+   [
+    11,
+    65.58,
+    92.8
+   ],
+   [
+    12,
+    13.98,
+    13.44
+   ],
+   [
+    12,
+    13.98,
+    23.51
+   ],
+   [
+    13,
+    11.24,
+    33.59
+   ],
+   [
+    13,
+    11.24,
+    66.7
+   ],
+   [
+    14,
+    21.5,
+    3.26
+   ],
+   [
+    14,
+    86.19,
+    3.26
+   ],
+   [
+    14,
+    10.8,
+    85.03
+   ],
+   [
+    14,
+    96.9,
+    85.03
+   ]
+  ]
+ },
+ "io2": {
+  "ref": "V102-IO2-0",
+  "how": [
+   "GAL16V8 decodes the 82C55A PPI at 24h–27h and the LCD at 30h/31h (RS = A0)",
+   "Ports A and B on J5 for user I/O; eight buttons on port C (pressed = 1)",
+   "20 × 4 HD44780 LCD on the data bus in 8-bit mode, E from the PLD",
+   "Uses only A0–A7, D0–D7, IORQ, RD, WR, RST; the LCD makes it the top of the stack"
+  ],
+  "won": [
+   "Slow HD44780 driven straight from the CPU bus with no extra logic",
+   "Works on Z80 and 6502 through the shared I/O cycle",
+   "A compact front panel: display and buttons in one board"
+  ],
+  "next": [
+   "Qualify LCD E with /RD or /WR: it answers interrupt-acknowledge cycles",
+   "LCD R/W timing from WRB on the Z80",
+   "Backlight resistor and switch; move the GAL out from under the LCD",
+   "Optional button interrupt"
+  ],
+  "parts": [
+   [
+    "1",
+    "M1",
+    "20 × 4 HD44780 LCD (30h/31h)"
+   ],
+   [
+    "2",
+    "SW0–SW7",
+    "Push-buttons on 82C55 port C"
+   ],
+   [
+    "3",
+    "RV1",
+    "LCD contrast"
+   ],
+   [
+    "4",
+    "IC2",
+    "82C55A PPI, 24h–27h (under the LCD)"
+   ],
+   [
+    "5",
+    "IC1",
+    "GAL16V8 I/O decode (under the LCD)"
+   ],
+   [
+    "6",
+    "IC3",
+    "74LVC2G14 reset inverter (under the LCD)"
+   ],
+   [
+    "7",
+    "J1…",
+    "Stack-bus corner sockets"
+   ]
+  ],
+  "spots": [
+   [
+    1,
+    53.93,
+    42.8
+   ],
+   [
+    2,
+    25.33,
+    79.08
+   ],
+   [
+    2,
+    83.58,
+    79.08
+   ],
+   [
+    3,
+    37.95,
+    6.14
+   ],
+   [
+    4,
+    56.49,
+    52.69
+   ],
+   [
+    5,
+    44.84,
+    31.09
+   ],
+   [
+    6,
+    84.2,
+    37.52
+   ],
+   [
+    7,
+    21.71,
+    3.26
+   ],
+   [
+    7,
+    86.23,
+    3.26
+   ],
+   [
+    7,
+    11.03,
+    85.03
+   ],
+   [
+    7,
+    96.91,
+    85.03
+   ]
+  ]
+ },
+ "pr1": {
+  "ref": "V102-PR1-2",
+  "how": [
+   "ATmega64A at 16 MHz drives A0–A15 and D0–D7 straight from its own ports",
+   "FT232RL USB link; image buffered in a 23LC512 SPI SRAM and echoed to the host",
+   "Takes the bus with BUSRQ, writes the 28C256 in 64-byte pages with DATA polling, verifies, resets the target",
+   "Bus, J12 or barrel jack (AMS1117) power; ICSP and JTAG for its own firmware"
+  ],
+  "won": [
+   "Speed: direct port drive meets the 28C256's 150 µs page window, so page mode works where PR2's I²C could not",
+   "Same serial protocol as PR2, so the host script didn't change",
+   "One programmer for all three CPU boards via the generic PROG lines"
+  ],
+  "next": [
+   "“XXX” EOF marker can occur in real data: use a length prefix",
+   "No BUSAK feedback and no series resistors on the bus drive",
+   "Handle EEPROM software data protection",
+   "BOD at 4.0 V; standard ISP/JTAG pinouts"
+  ],
+  "parts": [
+   [
+    "1",
+    "IC1",
+    "ATmega64A MCU (drives the bus directly)"
+   ],
+   [
+    "2",
+    "Y1",
+    "16 MHz crystal"
+   ],
+   [
+    "3",
+    "IC2",
+    "FT232RL USB-UART"
+   ],
+   [
+    "4",
+    "J7",
+    "USB mini-B to the PC"
+   ],
+   [
+    "5",
+    "IC3",
+    "23LC512 SPI SRAM image buffer"
+   ],
+   [
+    "6",
+    "SW1",
+    "DTR auto-reset (firmware upload)"
+   ],
+   [
+    "7",
+    "J6",
+    "ICSP header"
+   ],
+   [
+    "8",
+    "J8",
+    "JTAG debug header"
+   ],
+   [
+    "9",
+    "IC4, J9",
+    "AMS1117 and DC jack (stand-alone power)"
+   ],
+   [
+    "10",
+    "J12",
+    "+5 V / GND power socket"
+   ],
+   [
+    "11",
+    "J5",
+    "ICPP header"
+   ],
+   [
+    "12",
+    "JP1",
+    "ISP power jumper"
+   ],
+   [
+    "13",
+    "D2, D3",
+    "Blue and red status LEDs"
+   ],
+   [
+    "14",
+    "J…",
+    "Stack-bus sockets (with 90° duplicates)"
+   ]
+  ],
+  "spots": [
+   [
+    1,
+    33.08,
+    50.1
+   ],
+   [
+    2,
+    50.05,
+    50.29
+   ],
+   [
+    3,
+    71.97,
+    29.25
+   ],
+   [
+    4,
+    69.78,
+    5.35
+   ],
+   [
+    5,
+    72.64,
+    53.44
+   ],
+   [
+    6,
+    97.33,
+    43.12
+   ],
+   [
+    7,
+    87.8,
+    63.96
+   ],
+   [
+    8,
+    9.44,
+    38.15
+   ],
+   [
+    9,
+    11.06,
+    54.68
+   ],
+   [
+    9,
+    10.68,
+    67.21
+   ],
+   [
+    10,
+    47.19,
+    14.24
+   ],
+   [
+    11,
+    45.57,
+    2.29
+   ],
+   [
+    12,
+    73.59,
+    74.67
+   ],
+   [
+    13,
+    62.54,
+    97.9
+   ],
+   [
+    13,
+    69.49,
+    97.9
+   ],
+   [
+    14,
+    15.44,
+    3.63
+   ],
+   [
+    14,
+    85.13,
+    3.63
+   ],
+   [
+    14,
+    3.91,
+    85.09
+   ],
+   [
+    14,
+    96.66,
+    85.09
+   ]
+  ]
+ },
+ "pr2": {
+  "ref": "V102-PR2-0",
+  "how": [
+   "ATmega8 with FT232RL and a 23LC512 (usually) buffer; same protocol and script as PR1",
+   "Three PCF8574 I²C expanders drive A0–A7 (27h), A8–A15 (26h) and D0–D7 (24h); ROM control lines direct",
+   "Three paralleled pads form a backplane; each pad can stack. v101 boards fit via the 90° rows and ICPP header",
+   "Barrel jack feeds PWR to the CPU board's regulator; it backs off if another programmer pulses RESX"
+  ],
+  "won": [
+   "The first working in-circuit programmer: I²C expanders made up for a 32-pin MCU",
+   "Bridged the v101 and v102 board families on one backplane",
+   "Top access to every board for probing and debugging",
+   "Showed I²C was too slow for page mode, which led to PR1"
+  ],
+  "next": [
+   "Byte mode only: full ROMs take minutes",
+   "Wire.setClock() before Wire.begin(): I²C likely at 100 kHz",
+   "Bus isn't released after a write timeout",
+   "Weak PCF8574 highs vs the MTX's data pull-downs; 12 V next to A8 on ICPP"
+  ],
+  "parts": [
+   [
+    "1",
+    "Pad A",
+    "Shown with the I/O 2 LCD board fitted"
+   ],
+   [
+    "2",
+    "Pad B",
+    "Shown with the Z80 SBC fitted"
+   ],
+   [
+    "3",
+    "Pad C",
+    "Shown with PR1 fitted; PR2's MCU, FT232, SRAM and PCF8574s sit underneath"
+   ],
+   [
+    "4",
+    "J1",
+    "DC input 7.5–18 V → bus PWR"
+   ],
+   [
+    "5",
+    "J7",
+    "USB to the PC"
+   ],
+   [
+    "6",
+    "JA5–JC5",
+    "ICPP headers (v101 interface)"
+   ]
+  ],
+  "spots": [
+   [
+    1,
+    18.57,
+    49.62
+   ],
+   [
+    2,
+    51.07,
+    67.25
+   ],
+   [
+    3,
+    83.57,
+    69.77
+   ],
+   [
+    4,
+    56.55,
+    9.32
+   ],
+   [
+    5,
+    87.28,
+    4.79
+   ],
+   [
+    6,
+    16.9,
+    9.57
+   ],
+   [
+    6,
+    49.68,
+    9.57
+   ],
+   [
+    6,
+    79.85,
+    9.57
+   ]
+  ]
+ }
+}

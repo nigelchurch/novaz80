@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MTX512 CPU board design notes · NOVAZ80</title>
+<meta name="description" content="Design analysis of the NOVAZ80 MTX512 CPU board.">
+<meta name="theme-color" content="#0b0b0d">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" aria-label="Main"><div class="wrap"><a class="brand" href="../index.html">NOVAZ80</a>
+<ul><li><a href="../index.html#story">Story</a></li><li><a href="../design.html">Design</a></li><li><a href="../index.html#build">Build</a></li><li><a href="../index.html#bus">Bus</a></li><li><a href="../index.html#boards" aria-current="true">Boards</a></li></ul></div></nav>
+<main id="main">
+<section class="paper sec"><div class="wrap"><p><a class="more" href="mtx.html">← MTX512 CPU board</a></p><article class="notes"><details class="toc"><summary>Contents</summary><ul><li><a href="#s0">0. Where this board sits in the NOVAZ80 project</a></li><li><a href="#s1">1. Summary</a></li><li><a href="#s2">2. Block diagram</a></li><li><a href="#s3">3. Parts (BoM)</a></li><li><a href="#s4">4. Subsystems</a></li><li><a href="#s5">5. Memory map (from the PLD)</a></li><li><a href="#s6">6. Connectors</a></li><li><a href="#s7">7. PLD</a></li><li><a href="#s8">8. Timing notes</a></li><li><a href="#s9">9. Observations for the next revision</a></li><li><a href="#s10">10. Open questions</a></li></ul></details><h1>NOVAZ80 MTX Board — V102-MTX-2 (Rev 001)</h1>
+<p>Design analysis from <code>V102-MTX-2.net</code> (KiCad/Eeschema 9.0.7 export, 2026-11-25), the schematic (single sheet, <code>V102-MTX-2.kicad_sch</code>), the BoM and the PCB file (<code>V102-MTX-2.kicad_pcb</code>). ERC: 0 errors / 0 warnings. DRC: 0 violations, 0 unconnected pads, 0 footprint errors.</p>
+<p>Title block: <em>NOVAZ80 MTX – V102 MTX Board</em>, Nova Embedded Solutions, dated 2024-01-02, Rev 001.
+Revision note: &quot;Added control of ROM.A13 from PLD for programming to make use of 3rd 8kB block in RAM [sic: ROM] A|B|x|C&quot;.</p>
+<p>PLD: <code>v102-mtx-2.PLD</code> and <code>v102-mtx-2.jed</code>. The fuse map was decoded and matches the source equations (section 7). Earlier versions <code>v102-mtx-0</code> and <code>v102-mtx-1</code> are in the same folder (history in section 7.3).</p>
+<hr />
+<h2 id="s0">0. Where this board sits in the NOVAZ80 project</h2>
+<p>The CPU board for the <strong>Memotech MTX512</strong> configuration. It is a Z80 with the MTX's paged ROM/RAM memory system and nothing else:</p>
+<ul>
+<li><strong>Z80 CPU</strong>, clocked from the bus (no oscillator on this board),</li>
+<li><strong>32 K main ROM</strong> (28C256) holding the MTX ROMs A, B and C plus one spare 8 K block,</li>
+<li>an optional <strong>second 28C256 (&quot;ROMx&quot;)</strong> for extension code,</li>
+<li><strong>64 K RAM</strong> in two 62256s (&quot;MTX500&quot; 32 K + &quot;MTX512&quot; 32 K),</li>
+<li>the <strong>page register</strong> (74AHC273, the MTX <code>RELCPMH</code> register at port <code>00h</code>) and an ATF20V8B PLD that turns it into chip selects.</li>
+</ul>
+<p>It has <strong>no I/O devices and no I/O decode of its own</strong>. Everything at I/O addresses comes from other boards:</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Needs</th>
+<th>From</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU clock (<code>4M</code> / <code>CLK</code>)</td>
+<td>VDP + sound board (V102-VDP-1) oscillator</td>
+</tr>
+<tr>
+<td><code>OUT0</code> strobe for the page register</td>
+<td>VDP + sound board PLD</td>
+</tr>
+<tr>
+<td>VDP, sound</td>
+<td>VDP + sound board</td>
+</tr>
+<tr>
+<td>CTC (incl. VDP interrupt), keyboard, serial</td>
+<td>I/O board (V102-IO1-0)</td>
+</tr>
+</tbody>
+</table></div>
+<p>So the <strong>I/O and VDP/sound boards are both required</strong> in this configuration; without the VDP board the CPU has no clock.</p>
+<p>Like the Z80 SBC, this board is the <strong>+5 V source for the stack</strong> (DC-DC module onto SPEC pin 2). Only one CPU board is fitted in a stack.</p>
+<p>Status: built, tested and in use. Section 9 collects observations for the planned 4-layer revision.</p>
+<hr />
+<h2 id="s1">1. Summary</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU</td>
+<td>Z80, CMOS (silkscreen &quot;Z80 CMOS CPU&quot;), DIP-40</td>
+</tr>
+<tr>
+<td>Main ROM</td>
+<td>28C256, 32 K = four 8 K blocks A | B | n | C (silkscreen &quot;ROMABC 4x8kB: A|B|n|C&quot;)</td>
+</tr>
+<tr>
+<td>Expansion ROM</td>
+<td>ROMx: optional 28C256 (&quot;28C256 ONLY&quot;), enable jumper J3, address jumpers J2/J4</td>
+</tr>
+<tr>
+<td>RAM</td>
+<td>2 × HM62256 = 64 K (&quot;RAM 32kB – MTX500&quot;, &quot;RAM2 32kB – (MTX512)&quot;, RAM2 marked optional)</td>
+</tr>
+<tr>
+<td>Paging</td>
+<td>74AHC273 page register (<code>OUT (00h)</code>, clocked by the VDP board's <code>OUT0</code>), cleared by reset</td>
+</tr>
+<tr>
+<td>Glue</td>
+<td>ATF20V8B PLD: memory selects and ROM A13/A14 only (no I/O decode, no <code>/IORQ</code>)</td>
+</tr>
+<tr>
+<td>Reset</td>
+<td>MAX811L (4.63 V) + reset button + bus <code>KBDRST</code>; programmer <code>RESX</code> merged by a 74LVC2G02</td>
+</tr>
+<tr>
+<td>Clock</td>
+<td><strong>None on board.</strong> <code>CLK</code> is tied to bus <code>4M</code> (from the VDP board, 4 MHz)</td>
+</tr>
+<tr>
+<td>Interrupts</td>
+<td><code>/INT</code> from the bus only (1 k pull-up). No daisy-chain parts on this board</td>
+</tr>
+<tr>
+<td>Power</td>
+<td>DC jack (silkscreen &quot;DC IN 7.5V–15V&quot;) → push-button DPDT switch → buck module → +5 V</td>
+</tr>
+<tr>
+<td>PCB</td>
+<td>100 × 100 mm, 2-layer, +5 V pour on F.Cu, GND pour on B.Cu, 0.15 mm signal tracks (0.4 mm power)</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="s2">2. Block diagram</h2>
+<pre tabindex="0"><code> Barrel jack PL1 ─PWR─┬──────────────────────────────────► PROG pin 8 (raw input, unswitched)
+          sleeve GND1 │
+                      └─ SW2 (DPDT) ─PWR1/GND2─► PW1 DC-DC ─► +5V ─► SPEC pin 2 (feeds the stack)
+                                                              └─R3─► D2 power LED
+
+ SPEC 4M ═══ CTRL CLK ═══► CPU CLK            (one net on this board; R5 470R pull-up)
+
+ SW1 RESET ┐
+ SPEC KBDRST┴─► MAX811 /MR ─► RESB ─► IC9a NOR (inverter) ─┐
+ PROG RESX ────────────────────────────────────────► IC9b NOR ─► RSTB ─► CPU /RESET, 273 /MR, CTRL pin 1
+
+ SPEC OUT0 ─► 74AHC273 CP      D0–D7 ─► 273 ─► P0–P3, R0–R2, CPM ─► MTX group (bus) and PLD
+
+ A13 A14 A15 MREQB, P0–P3, R0–R2, CPM, ROMCSX, SELECT (SW3)
+        │
+        ▼
+     PLD IC6 ─┬─► ROM    ─► main ROM /CS        ROMA13, ROMA14 ─► main ROM A13, A14
+              ├─► ROMX ─J3─► ROMx /CS (R10 pull-up)
+              ├─► RAM    ─► RAM  /CS (MTX500)
+              ├─► RAM2   ─► RAM2 /CS (MTX512)
+              └─► ROM7   ─► PROG pin 2 (off-board cartridge ROM 7)
+
+ Main ROM, ROMx:  A0–A12 from CPU,  /OE = ROMOEX (1k pull-down),  /WE = ROMWEX (1k pull-up)
+ ROMx A13/A14:    CPU A13/A14 via jumpers J4/J2, else 1k to GND
+ RAM, RAM2:       A0–A14 from CPU,  /OE = GND,  /WE = WRB
+
+ ┌──────────┐  A0–A15, D0–D7 (4k7 pull-DOWNs), M1 MREQ IORQ RD WR INT BUSRQ ─► stack (no buffers)
+ │ Z80 CPU  │  NMI, WAIT: tied straight to +5V.  HALT, RFSH, BUSACK: not connected.
+ └──────────┘
+</code></pre>
+<hr />
+<h2 id="s3">3. Parts (BoM)</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Ref</th>
+<th>Part</th>
+<th>Function</th>
+<th>Datasheet</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IC1</td>
+<td>Z80 CPU (CMOS, Z84C00 family), DIP-40</td>
+<td>CPU</td>
+<td><a href="http://www.zilog.com/docs/z80/ps0178.pdf">Z84C00</a>, <a href="http://www.zilog.com/docs/z80/um0080.pdf">Z80 User Manual UM0080</a></td>
+</tr>
+<tr>
+<td>IC2</td>
+<td>28C256, DIP-28 (600 mil), BoM value &quot;ROM&quot;</td>
+<td>Main ROM: MTX ROMs A, B, C + spare block</td>
+<td><a href="https://ww1.microchip.com/downloads/en/DeviceDoc/doc0006.pdf">AT28C256</a></td>
+</tr>
+<tr>
+<td>IC5</td>
+<td>28C256, DIP-28 (600 mil), BoM value &quot;ROMX&quot;</td>
+<td>Optional expansion ROM (&quot;ROMx&quot;)</td>
+<td>as IC2</td>
+</tr>
+<tr>
+<td>IC3</td>
+<td>HM62256BLP, DIP-28 (300 mil), BoM value &quot;RAM&quot;</td>
+<td>RAM, 32 K (&quot;MTX500&quot;)</td>
+<td><a href="https://web.mit.edu/6.115/www/document/62256.pdf">HM62256</a></td>
+</tr>
+<tr>
+<td>IC4</td>
+<td>HM62256BLP, DIP-28 (300 mil), BoM value &quot;RAM2&quot;</td>
+<td>RAM, 32 K (&quot;MTX512&quot;, optional)</td>
+<td>as IC3</td>
+</tr>
+<tr>
+<td>IC6</td>
+<td>ATF20V8B (symbol ATF20V8B-10PU), DIP-24</td>
+<td>Memory decode PLD</td>
+<td><a href="https://pages.uoregon.edu/torrence/432/spec/ATF20V8.pdf">ATF20V8B</a></td>
+</tr>
+<tr>
+<td>IC7</td>
+<td>74AHC273, DIP-20</td>
+<td>Page register (MTX <code>RELCPMH</code>, port 00h)</td>
+<td><a href="https://assets.nexperia.com/documents/data-sheet/74AHC_AHCT273.pdf">74AHC273</a></td>
+</tr>
+<tr>
+<td>IC8</td>
+<td>MAX811LEUS-T, SOT-143</td>
+<td>Reset supervisor, 4.63 V, manual-reset input</td>
+<td><a href="https://www.analog.com/media/en/technical-documentation/data-sheets/MAX811-MAX812.pdf">MAX811</a></td>
+</tr>
+<tr>
+<td>IC9</td>
+<td>74LVC2G02, VSSOP-8</td>
+<td>Dual NOR: reset merge (MAX811 + programmer <code>RESX</code>)</td>
+<td><a href="https://www.ti.com/lit/ds/symlink/sn74lvc2g02.pdf">SN74LVC2G02</a></td>
+</tr>
+<tr>
+<td>PW1</td>
+<td>Buck module, 4-pin (GND, Vout, Vin, GND), footprint <code>dc_dc_1</code></td>
+<td>+5 V for the board and the stack</td>
+<td>Generic module, no datasheet</td>
+</tr>
+<tr>
+<td>PL1</td>
+<td>Barrel jack with switch, Würth 6941xx301002</td>
+<td>Power input</td>
+<td><a href="https://www.we-online.com/components/products/datasheet/694106301002.pdf">Würth 694106301002</a></td>
+</tr>
+<tr>
+<td>SW2</td>
+<td>DPDT push switch, right-angle</td>
+<td>Power on/off</td>
+<td>—</td>
+</tr>
+<tr>
+<td>SW1</td>
+<td>Tactile switch, right-angle (PTS645)</td>
+<td>Reset</td>
+<td>—</td>
+</tr>
+<tr>
+<td>SW3</td>
+<td>SPDT slide switch</td>
+<td>&quot;PROG TARGET&quot;: main ROM or ROMx</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J3</td>
+<td>1×2 header (jumper), silkscreen &quot;EN/DIS&quot;</td>
+<td>ROMx enable</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J2, J4</td>
+<td>1×2 headers (jumpers), silkscreen &quot;-A14-&quot;, &quot;-A13-&quot;</td>
+<td>ROMx A14 / A13 from CPU, or grounded</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J1</td>
+<td>1×1 pin, silkscreen &quot;GND&quot;</td>
+<td>Ground test point</td>
+<td>—</td>
+</tr>
+<tr>
+<td>JA1–JA8</td>
+<td>8-way &quot;11 mm&quot; stacking sockets (bottom side)</td>
+<td>Stack bus (section 6)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C1, C3–C8</td>
+<td>100 nF 1206</td>
+<td>Bypass</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C2</td>
+<td>1 µF 1206</td>
+<td>+5 V bulk</td>
+<td>—</td>
+</tr>
+<tr>
+<td>D2 / R3</td>
+<td>LED / 470 R</td>
+<td>Power indicator</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R5</td>
+<td>470 R</td>
+<td>CLK pull-up</td>
+<td>—</td>
+</tr>
+<tr>
+<td>RN1, RN2</td>
+<td>4k7 × 4 arrays</td>
+<td>D0–D7 <strong>pull-downs</strong> (schematic note &quot;DATA BUS PULL-DOWNS&quot;)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R1, R4, R7, R9, R10</td>
+<td>1 k</td>
+<td>Pull-ups: KBDRST, INTB, ROMWEX, BUSRQ, ROMx /CS</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R2, R6, R8, R12</td>
+<td>1 k</td>
+<td>Pull-downs: RESX, ROMx A14, ROMx A13, ROMOEX</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<p>There is no CTC, PIO or oscillator on this board, and no pull-up on <code>IEO1</code> (compare the Z80 SBC).</p>
+<hr />
+<h2 id="s4">4. Subsystems</h2>
+<h3>4.1 CPU (IC1)</h3>
+<ul>
+<li>Address and data buses go straight to the memories and the stack. <strong>No bus buffers.</strong></li>
+<li><code>/NMI</code> and <code>/WAIT</code> are <strong>tied directly to +5 V</strong> (no resistor). <code>/HALT</code>, <code>/RFSH</code>, <code>/BUSACK</code> are not connected.</li>
+<li><code>/BUSRQ</code>: 1 k pull-up (R9), on PROG pin 3 for the programmer.</li>
+<li><code>/INT</code>: from CTRL pin 8 only, 1 k pull-up (R4). The interrupt sources are the I/O board's CTC/SIO/PIO.</li>
+<li><code>/IORQ</code>, <code>/M1</code>, <code>/RD</code> go only to the bus. <code>/WR</code> also drives both RAM <code>/WE</code> pins. Only <code>/MREQ</code> reaches the PLD.</li>
+<li><strong>D0–D7 have 4k7 pull-downs</strong>, not pull-ups as on the Z80 SBC. Unmapped memory and undriven I/O ports read <code>00h</code> on this board.</li>
+</ul>
+<h3>4.2 Clock</h3>
+<ul>
+<li>The CPU <code>CLK</code> pin, CTRL pin 2 (<code>CLK</code>) and SPEC pin 6 (<code>4M</code>) are <strong>one net</strong>. There is no oscillator and no jumper.</li>
+<li>The clock comes from the VDP board's 4 MHz can (V102-VDP-1 section 4.4), which therefore drives the CPU and the whole stack's <code>CLK</code> line, the same frequency as a real MTX.</li>
+<li>R5 (470 R) pulls <code>CLK</code> up to +5 V, about 10 mA in each low half-cycle (same idea as the Z80 SBC's 330 R).</li>
+<li>On this configuration, the I/O board's JP2 &quot;bus 4M&quot; option is the CPU clock itself.</li>
+</ul>
+<h3>4.3 Reset</h3>
+<ul>
+<li><strong>MAX811L (IC8):</strong> holds <code>RESB</code> low for at least 140 ms after +5 V rises above about 4.63 V. Its <code>/MR</code> is pulled low by <strong>SW1</strong> or the bus line <strong><code>KBDRST</code></strong> (MTX keyboard reset key via the I/O board's J6). R1 is an extra 1 k pull-up on <code>/MR</code>.</li>
+<li><strong>IC9 (74LVC2G02)</strong>, two NOR gates, replaces the PLD reset term used on the Z80 SBC:
+<ul>
+<li>Gate 1: both inputs = <code>RESB</code> → output = NOT <code>RESB</code>.</li>
+<li>Gate 2: inputs = NOT <code>RESB</code> and <code>RESX</code> (PROG pin 6, 1 k pull-down R2) → output = <strong><code>RSTB</code></strong>.</li>
+<li><code>RSTB</code> is low when <code>RESB</code> is low <strong>or</strong> <code>RESX</code> is high (same function as the Z80 SBC).</li>
+</ul>
+</li>
+<li><code>RSTB</code> drives the CPU <code>/RESET</code>, CTRL pin 1 (system reset for the stack) and the <strong>74AHC273 <code>/MR</code></strong>. Reset therefore clears the page register: ROM mode, ROM page 0, RAM page 0, as on a real MTX after reset.</li>
+</ul>
+<h3>4.4 Page register (IC7, 74AHC273) — MTX <code>RELCPMH</code></h3>
+<ul>
+<li>D0–D7 from the data bus. <code>CP</code> = bus <code>OUT0</code> (SPEC pin 7), which the VDP board's PLD drives high during <code>OUT (00h)</code> while <code>/WR</code> is low. The '273 latches on the rising edge, i.e. as <code>/WR</code> falls (plus the VDP PLD delay). The Z80 has write data on the bus from T1, so it's valid by then.</li>
+<li>Outputs go to the MTX bus group <strong>and</strong> to the PLD:</li>
+</ul>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Bit</th>
+<th>273 output</th>
+<th>Signal</th>
+<th>MTX meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D0–D3</td>
+<td>Q0–Q3</td>
+<td><code>P0</code>–<code>P3</code></td>
+<td>RAM page</td>
+</tr>
+<tr>
+<td>D4–D6</td>
+<td>Q4–Q6</td>
+<td><code>R0</code>–<code>R2</code></td>
+<td>ROM page (2000–3FFF)</td>
+</tr>
+<tr>
+<td>D7</td>
+<td>Q7</td>
+<td><code>CPM</code></td>
+<td>0 = ROM mode, 1 = all-RAM (CP/M) mode</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>Write-only</strong> (as on the MTX). Software must keep its own copy of the last value written.</li>
+<li>The MTX group (JA8) carries the register to the rest of the stack for any board that wants to follow the paging. None of the documented boards uses it yet.</li>
+</ul>
+<h3>4.5 Main ROM (IC2) — A | B | n | C</h3>
+<ul>
+<li>A0–A12 from the CPU. <strong>A13 = PLD <code>ROMA13</code>, A14 = PLD <code>ROMA14</code></strong>, so the PLD chooses which 8 K block of the chip appears at 2000–3FFF.</li>
+<li><code>/CS</code> = PLD <code>ROM</code>. <code>/OE</code> = <code>ROMOEX</code> (PROG pin 7, 1 k pull-down → <strong>always enabled</strong> unless the programmer pulls it high). <code>/WE</code> = <code>ROMWEX</code> (PROG pin 4, 1 k pull-up → <strong>the Z80 can't write the ROM</strong>).</li>
+<li>Chip layout and CPU mapping (ROM mode, section 5):</li>
+</ul>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Chip address</th>
+<th>Block</th>
+<th>Content</th>
+<th>CPU address</th>
+<th>Selected when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0000–1FFF</code></td>
+<td>A</td>
+<td>MTX OS ROM</td>
+<td><code>0000–1FFF</code></td>
+<td>always (ROM mode)</td>
+</tr>
+<tr>
+<td><code>2000–3FFF</code></td>
+<td>B</td>
+<td>MTX ROM page 0 (BASIC)</td>
+<td><code>2000–3FFF</code></td>
+<td>R = 0</td>
+</tr>
+<tr>
+<td><code>4000–5FFF</code></td>
+<td>n</td>
+<td>spare 8 K &quot;embedded&quot; user ROM</td>
+<td><code>2000–3FFF</code></td>
+<td>R = 3</td>
+</tr>
+<tr>
+<td><code>6000–7FFF</code></td>
+<td>C</td>
+<td>MTX ROM page 1</td>
+<td><code>2000–3FFF</code></td>
+<td>R = 1</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li>When programming (<code>ROMCSX</code> high) the PLD makes <code>ROMA13</code>/<code>ROMA14</code> follow the bus A13/A14, so the whole 32 K chip is programmed as one flat image in the order above.</li>
+</ul>
+<h3>4.6 Expansion ROM (&quot;ROMx&quot;, IC5) — optional</h3>
+<ul>
+<li>A0–A12 from the CPU. <code>/OE</code>, <code>/WE</code> shared with the main ROM (<code>ROMOEX</code>, <code>ROMWEX</code>).</li>
+<li><strong>A13 / A14</strong> come through jumpers <strong>J4 (&quot;-A13-&quot;)</strong> and <strong>J2 (&quot;-A14-&quot;)</strong> from the CPU's A13/A14. With a jumper removed, R8/R6 (1 k) hold that pin low (schematic: &quot;ROM EARTH JUMPERS&quot;).</li>
+<li><strong><code>/CS</code></strong> comes from PLD <code>ROMX</code> through <strong>J3 (&quot;EN/DIS&quot;)</strong>. With J3 removed, R10 holds <code>/CS</code> high and ROMx is disabled.</li>
+<li>The PLD selects ROMx for <strong><code>2000–7FFF</code> when R = 6</strong> (ROM mode). With J2 and J4 fitted that's chip <code>2000–7FFF</code> (24 K; chip <code>0000–1FFF</code> is never reached at run time). With both removed, the same chip block <code>0000–1FFF</code> appears three times.</li>
+<li>The PLD drops RAM2 out of <code>4000–7FFF</code> (P = 0) while R = 6, so ROMx takes over that 16 K.</li>
+<li>Schematic note: <strong>must be a 28C256</strong>, because the programmer uses page-write mode, which the 8 K part doesn't have. The silkscreen agrees (&quot;OPTIONAL EXPANSION (28C256 ONLY)&quot;).</li>
+<li>The silkscreen next to IC5 still reads &quot;ROMx (2000-3FFF R=x)&quot;, which is older than the current PLD (section 9, item 8).</li>
+</ul>
+<h3>4.7 RAM (IC3 &quot;RAM&quot;, IC4 &quot;RAM2&quot;)</h3>
+<ul>
+<li>Both take A0–A14 from the CPU directly. <code>/OE</code> <strong>tied to GND</strong>, <code>/WE</code> = <code>/WR</code>, <code>/CS</code> from the PLD.</li>
+<li>IC3 is the MTX500's 32 K; IC4 is the extra 32 K of the MTX512 (silkscreen &quot;OPTIONAL EXPANSION&quot;). Without IC4 the board is an MTX500.</li>
+<li>With <code>/OE</code> permanently active a selected RAM drives the data bus until <code>/WR</code> falls, on every write (same as the Z80 SBC, section 9 item 1).</li>
+</ul>
+<h3>4.8 Off-board ROM 7</h3>
+<ul>
+<li>PLD <code>ROM7</code> (active low) is driven onto <strong>PROG pin 2</strong> for <code>2000–3FFF</code> when R = 7. It's the chip select for an off-board cartridge ROM (PLD comment &quot;select for cartridge rom 7 - off board&quot;).</li>
+<li>This answers the overview's question about <code>ROM7</code>: it's an <strong>output from the MTX board</strong>. The Z80 SBC and I/O board leave PROG pin 2 unconnected, and on the programmer it's a single-node net.</li>
+</ul>
+<h3>4.9 Programming support</h3>
+<ul>
+<li><strong>SW3 &quot;PROG TARGET&quot;</strong> drives PLD <code>SELECT</code>: +5 V = main ROM (&quot;ROM ABC&quot;), GND = ROMx.</li>
+<li>While the programmer holds <code>ROMCSX</code> high:
+<ul>
+<li><code>SELECT</code> = 1 → main ROM <code>/CS</code> forced low, <code>ROMA13</code>/<code>ROMA14</code> = bus A13/A14 (whole chip addressable).</li>
+<li><code>SELECT</code> = 0 → ROMx <code>/CS</code> forced low (if J3 is fitted). ROMx A13/A14 follow the bus only if J4/J2 are fitted.</li>
+</ul>
+</li>
+<li><code>ROMOEX</code> and <code>ROMWEX</code> go to both ROMs; only the selected one responds.</li>
+<li><strong><code>ROMCSX</code> has no pull-down on this board</strong> (the Z80 SBC has 1 k). See section 9, item 2.</li>
+<li><code>RESX</code> resets the system through IC9 at the end of programming, which also clears the page register.</li>
+</ul>
+<h3>4.10 Power</h3>
+<ul>
+<li>PL1 centre pin = <code>PWR</code>. It goes <strong>unswitched</strong> to PROG pin 8, as on the Z80 SBC.</li>
+<li><strong>Ground differs from the Z80 SBC.</strong> The jack's sleeve (<code>GND1</code>) is <em>not</em> board GND. SW2 pole 2 connects it to PW1 pin 4 (<code>GND2</code>), and only PW1 pin 1 is on board GND. So the supply's return reaches the board only through SW2 and the module's internal ground link.
+<ul>
+<li>With SW2 off, the 12 V on PROG pin 8 has no return path on this board. It's still a hazard if anything else in the stack provides a ground path to the supply (e.g. USB on the I/O board or programmer to a PC that shares ground with the adaptor).</li>
+<li>With SW2 on, the full supply current returns through PW1's ground. This works on the built board, so the module's two GND pads are common.</li>
+</ul>
+</li>
+<li>SW2 pole 1 switches <code>PWR</code> → <code>PWR1</code> (PW1 Vin).</li>
+<li>Silkscreen: &quot;DC IN 7.5V–15V&quot;. The module's own input rating isn't recorded (section 10).</li>
+<li>D2 (via R3 470 R) shows +5 V is present.</li>
+<li>Bypass: seven 100 nF plus one 1 µF for nine ICs. Much better than the other v102 boards.</li>
+<li>Copper: +5 V pour on F.Cu, GND pour on B.Cu.</li>
+</ul>
+<hr />
+<h2 id="s5">5. Memory map (from the PLD)</h2>
+<p>No I/O devices on this board. The only port it uses is <code>00h</code> (write), decoded by the VDP board as <code>OUT0</code>.</p>
+<h3>ROM mode (<code>CPM</code> = 0)</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>CPU address</th>
+<th>P = 0</th>
+<th>P = 1</th>
+<th>P ≥ 2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0000–1FFF</code></td>
+<td>ROM A</td>
+<td>ROM A</td>
+<td>ROM A</td>
+</tr>
+<tr>
+<td><code>2000–3FFF</code></td>
+<td>paged ROM (table below)</td>
+<td>paged ROM</td>
+<td>paged ROM</td>
+</tr>
+<tr>
+<td><code>4000–7FFF</code></td>
+<td>RAM2 chip <code>4000–7FFF</code> (ROMx instead when R = 6)</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>8000–BFFF</code></td>
+<td>RAM chip <code>0000–3FFF</code></td>
+<td>RAM2 chip <code>0000–3FFF</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>C000–FFFF</code></td>
+<td>RAM chip <code>4000–7FFF</code> (common)</td>
+<td>same</td>
+<td>same</td>
+</tr>
+</tbody>
+</table></div>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>R (ROM page)</th>
+<th><code>2000–3FFF</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Main ROM block B (MTX BASIC)</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Main ROM block C</td>
+</tr>
+<tr>
+<td>2</td>
+<td>—</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Main ROM block n (spare 8 K)</td>
+</tr>
+<tr>
+<td>4, 5</td>
+<td>—</td>
+</tr>
+<tr>
+<td>6</td>
+<td>ROMx (and ROMx also covers <code>4000–7FFF</code>)</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Off-board cartridge (<code>ROM7</code> on PROG pin 2)</td>
+</tr>
+</tbody>
+</table></div>
+<h3>CP/M mode (<code>CPM</code> = 1)</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>CPU address</th>
+<th>P = 0</th>
+<th>P ≠ 0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0000–3FFF</code></td>
+<td>RAM2 chip <code>0000–3FFF</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>4000–7FFF</code></td>
+<td>RAM2 chip <code>4000–7FFF</code> (except when R = 6, see section 9 item 4)</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>8000–BFFF</code></td>
+<td>RAM chip <code>0000–3FFF</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>C000–FFFF</code></td>
+<td>RAM chip <code>4000–7FFF</code></td>
+<td>same</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li>&quot;—&quot; = nothing selected; with the data-bus pull-downs the CPU reads <code>00h</code>.</li>
+<li>P = 0 gives 48 K + 16 K common = the full 64 K, and the two modes share the same RAM chips, so in CP/M mode the 16 K that ROM mode shows as page 1 (<code>8000–BFFF</code>, P = 1) appears at <code>0000–3FFF</code>.</li>
+<li>The page bits are fully decoded (P3–P0 = 0 or 1), so pages 2–15 are empty until another board decodes the MTX group.</li>
+<li>ROM A is at chip <code>0000</code> whatever R is (since PLD rev 002; the earlier version needed an image of ROM A at chip <code>4000</code> too).</li>
+</ul>
+<h3>Program image layout for the programmer</h3>
+<p>The programmer burns from chip address 0 (overview section 4). For the main ROM the 32 K image is: OS (A) at <code>0000</code>, BASIC (B) at <code>2000</code>, spare (n) at <code>4000</code>, page-1 ROM (C) at <code>6000</code>. Blocks B, n and C all run at CPU <code>2000</code>, so each is assembled with <code>ORG 2000h</code> and placed at its image offset. ROMx code runs at CPU <code>2000–7FFF</code> (R = 6) from chip <code>2000–7FFF</code>.</p>
+<hr />
+<h2 id="s6">6. Connectors</h2>
+<h3>6.1 Stack bus</h3>
+<p>One footprint per group, bottom side, same corner layout as the other boards. Every group passes through. The reference numbers differ from the other boards (JA1–JA8 in a different order).</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Conn</th>
+<th>Name</th>
+<th>Pins 1→8</th>
+<th>Use on this board</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>JA1</td>
+<td>ADDR</td>
+<td>A0 … A7</td>
+<td>CPU drives</td>
+</tr>
+<tr>
+<td>JA3</td>
+<td>ADDR2</td>
+<td><strong>A15</strong> A14 … A9 <strong>A8</strong> (reversed)</td>
+<td>CPU drives</td>
+</tr>
+<tr>
+<td>JA2</td>
+<td>DATA</td>
+<td>D0 … D7</td>
+<td>CPU, memories, 273; 4k7 <strong>pull-downs</strong></td>
+</tr>
+<tr>
+<td>JA6</td>
+<td>CTRL</td>
+<td>RSTB, CLK, M1B, MREQB, IORQB, RDB, WRB, INTB</td>
+<td>RSTB <strong>driven</strong> (IC9). CLK = 4M (consumed). M1/MREQ/IORQ/RD/WR from CPU. INTB → CPU, 1 k pull-up</td>
+</tr>
+<tr>
+<td>JA5</td>
+<td>SPEC</td>
+<td>GND, +5V, VDPINTB, IEO1, IEO2, 4M, OUT0, KBDRST</td>
+<td>+5 V <strong>source</strong>. 4M = CPU CLK. OUT0 → 273 CP. KBDRST → MAX811 /MR (1 k pull-up). VDPINTB, IEO1, IEO2 pass-through</td>
+</tr>
+<tr>
+<td>JA7</td>
+<td>PROG</td>
+<td>–, ROM7, BUSRQ, ROMWEX, ROMCSX, RESX, ROMOEX, PWR</td>
+<td>1: n/c. 2: <strong>ROM7 driven</strong> by PLD. 3: CPU /BUSRQ (1 k up). 4: both ROMs /WE (1 k up). 5: PLD (<strong>no pull</strong>). 6: IC9 (1 k down). 7: both ROMs /OE (1 k down). 8: raw jack input</td>
+</tr>
+<tr>
+<td>JA8</td>
+<td>MTX</td>
+<td>P0 P1 P2 P3 R0 R1 R2 CPM</td>
+<td><strong>Driven</strong> by the 74AHC273; also PLD inputs</td>
+</tr>
+<tr>
+<td>JA4</td>
+<td>AUX</td>
+<td>8 × not connected</td>
+<td>Pass-through</td>
+</tr>
+</tbody>
+</table></div>
+<p>Notes:</p>
+<ul>
+<li><code>IEO1</code> has <strong>no pull-up</strong> here. The I/O board's PIO drives it, and nothing below it in the chain is fitted, so it doesn't matter.</li>
+<li>This is the board that drives the MTX group, confirming the overview's guess that P0–P3 / R0–R2 are the page-select bits.</li>
+</ul>
+<h3>6.2 Jumpers and switches</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Ref</th>
+<th>Silkscreen</th>
+<th>Setting</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>J3</td>
+<td>EN/DIS</td>
+<td>fitted</td>
+<td>ROMx <code>/CS</code> from PLD (enabled)</td>
+</tr>
+<tr>
+<td>J3</td>
+<td></td>
+<td>open</td>
+<td>ROMx disabled (R10 pull-up)</td>
+</tr>
+<tr>
+<td>J4</td>
+<td>-A13-</td>
+<td>fitted / open</td>
+<td>ROMx A13 = CPU A13 / GND</td>
+</tr>
+<tr>
+<td>J2</td>
+<td>-A14-</td>
+<td>fitted / open</td>
+<td>ROMx A14 = CPU A14 / GND</td>
+</tr>
+<tr>
+<td>SW3</td>
+<td>PROG TARGET</td>
+<td>ROM ABC</td>
+<td>Programmer writes the main ROM</td>
+</tr>
+<tr>
+<td>SW3</td>
+<td></td>
+<td>ROMx</td>
+<td>Programmer writes ROMx</td>
+</tr>
+<tr>
+<td>SW1</td>
+<td>RESET</td>
+<td>press</td>
+<td>Reset (via MAX811)</td>
+</tr>
+<tr>
+<td>SW2</td>
+<td>POWER</td>
+<td></td>
+<td>Power on/off</td>
+</tr>
+<tr>
+<td>J1</td>
+<td>GND</td>
+<td></td>
+<td>Ground test point</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="s7">7. PLD</h2>
+<p><em>The PLD source is being held back until its original authors are credited.</em></p>
+<h2 id="s8">8. Timing notes</h2>
+<ul>
+<li><strong>Decode:</strong> ATF20V8B propagation (speed grade not confirmed: the symbol says -10, the part fields say a 16V8B-15). The ROM's A13/A14 also go through the PLD, so ROM access = PLD delay + 28C256 address access. At 4 MHz (T = 250 ns) the opcode-fetch budget is roughly 220–250 ns after the PLD delay, comfortable for a 150 ns 28C256 and a 70 ns 62256.</li>
+<li><strong>Page switch:</strong> an <code>OUT (00h)</code> changes the map at the '273's clock edge in T2 of the I/O cycle. The next opcode fetch already uses the new map, as on a real MTX, so code that switches ROM pages must run from ROM A or common RAM (<code>C000–FFFF</code>).</li>
+<li><strong>'273 clock:</strong> <code>OUT0</code> rises at <code>/WR</code> falling plus the VDP PLD delay; data has been on the bus since T1. Comfortable.</li>
+<li><strong>Clock:</strong> the VDP oscillator drives the CPU plus every board's <code>CLK</code> input, the stack traces and R5. With 0.15 mm tracks and no buffering, edge rates depend on the stack height (section 9, item 5).</li>
+</ul>
+<hr />
+<h2 id="s9">9. Observations for the next revision</h2>
+<p>Most important first.</p>
+<ol>
+<li><strong>ROM drives the bus on writes to ROM space.</strong> <code>ROMOEX</code> holds both ROM <code>/OE</code> pins low, and the ROM selects aren't gated by <code>/RD</code>. Any write to <code>0000–1FFF</code>, or to the paged ROM window, has the ROM and the CPU driving D0–D7 for the whole cycle. RAM has the usual ~1 T-state contention on every write (<code>/OE</code> tied low, as on the Z80 SBC).
+<ul>
+<li>Fix without new parts: wire spare PLD pin 11 to <code>/RD</code> and add <code>!RDB</code> to the run-time ROM, ROMX and ROM7 terms. Drive RAM <code>/OE</code> from <code>/RD</code>.</li>
+</ul>
+</li>
+<li><strong><code>ROMCSX</code> has no pull-down.</strong> Without the programmer, PLD pin 10 floats. The ATF20V8B's pin keepers hold an undriven input at its last level, so the power-up state isn't defined. If it settled high, the main ROM (or ROMx) would be selected at every address and contend with RAM, and <code>ROMA13</code>/<code>ROMA14</code> would stop paging. Add 1 k–10 k to GND, as on the Z80 SBC (R14).</li>
+<li><strong>Programming relies on <code>/MREQ</code> staying high.</strong> While the programmer holds the bus, the Z80 floats <code>/MREQ</code>, and the run-time terms aren't masked by <code>ROMCSX</code>. It works because the pin keeper holds the last driven level (high). If <code>/MREQ</code> drifted low:
+<ul>
+<li>programming ROMx (<code>SELECT</code> = 0) at <code>0000–1FFF</code> would also select the main ROM, and the shared <code>/WE</code> would <strong>write both chips</strong>,</li>
+<li>RAM/RAM2 (with <code>/OE</code> grounded) would drive the bus against the programmer's data.</li>
+<li>Fix: add <code>!ROMCSX</code> to every address term (no extra pins or terms needed), and put about 10 k pull-ups on <code>/MREQ</code>, <code>/RD</code>, <code>/WR</code> (project-wide item).</li>
+</ul>
+</li>
+<li><strong>CP/M mode with R = 6 loses 16 K.</strong> The <code>!ROM6</code> factor in RAM2's <code>4000–7FFF</code> term isn't qualified by <code>CPM</code>, and ROMx is off in CP/M mode, so writing <code>0E0h</code>-style values (CPM = 1, R = 6) to port 00h leaves <code>4000–7FFF</code> empty. Use <code>ROM6 = R2 &amp; R1 &amp; !R0 &amp; !CPM</code>.</li>
+<li><strong>CPU clock comes from the VDP board.</strong> Without it there's no clock, and the VDP's oscillator drives the whole stack's <code>CLK</code> load plus R5 (470 R, about 10 mA). Matches the VDP document's item 9. Either fit a local oscillator (with the Z80 SBC's JJP1-style option), or buffer <code>4M</code> on the VDP board.</li>
+<li><strong>74AHC273 input levels.</strong> Its <code>CP</code> comes from the VDP board's GAL16V8 (V<sub>OH</sub> min 2.4 V), while a 74AHC input at 5 V needs about 3.5 V. It works because the lightly loaded GAL output rises well above its minimum. Fit a <strong>74AHCT273 / 74HCT273</strong>.</li>
+<li><strong>Power input.</strong> Same 12 V-on-PROG-pin-8 risk as the Z80 SBC (item 7 there), plus no reverse-polarity, fuse or TVS protection. The supply return passes through SW2 and the module's internal ground (section 4.10). Simplest: tie the jack sleeve to board GND and use SW2's second pole to switch <code>PWR</code> to the bus. Check PW1's input rating against the silkscreen &quot;7.5–15 V&quot;.</li>
+<li><strong>ROMx mapping and labels.</strong> The silkscreen says &quot;ROMx (2000-3FFF R=x)&quot;; the PLD maps it at <code>2000–7FFF</code> for R = 6. With J2/J4 open, the 28C256 shows its first 8 K three times, and a programmer image larger than 8 K wraps and overwrites itself. Label J2/J4 with &quot;fit for 24 K ROMx&quot; and update the silkscreen.</li>
+<li><strong><code>/NMI</code> and <code>/WAIT</code> tied hard to +5 V.</strong> They can't even be bodged into use. Use resistors, and consider putting them (and <code>/BUSACK</code>) on the bus as for the Z80 SBC (item 6 there).</li>
+<li><strong>Data-bus pull-downs vs pull-ups.</strong> This board reads <code>00h</code> (NOP) from undriven addresses, the Z80 SBC reads <code>FFh</code> (<code>RST 38h</code>). Either is fine, but software written for one board's unmapped reads behaves differently on the other. Pick one convention for both CPU boards.</li>
+<li><strong>Floating inputs:</strong> PLD pin 11 (use it for item 1), and <code>ROMCSX</code> (item 2).</li>
+<li><strong>No buffering on the CPU bus</strong>, as on the Z80 SBC (item 5 there).</li>
+<li><strong>Housekeeping:</strong>
+<ul>
+<li>IC6's symbol is ATF20V8B-10PU, but its MPN, Mouser, Arrow, description and datasheet fields are copied from the ATF16V8B-15PU. IC9's datasheet field points to a TI selection guide.</li>
+<li>BoM values &quot;ROM&quot;, &quot;RAM&quot;, &quot;RAM2&quot;, &quot;ROMX&quot; instead of part numbers (28C256, HM62256).</li>
+<li>Revision note says &quot;RAM A|B|x|C&quot; (it's ROM). Title-block rev 001; PLD rev 002; folder <code>-2</code>.</li>
+<li>Stack-connector references (JA1 ADDR, JA2 DATA, JA3 ADDR2, …) don't follow the other boards' scheme (JA1/JA11, JA2/JA22 …).</li>
+<li>The folder holds <code>PHONO-SRC-00A-erc.rpt</code> (name from another project), an unreferenced <code>v102-con-z80.kicad_sch</code> (2023), <code>V102-MTX-2.kicad_sch-bak</code>, empty <code>output.log</code> and <code>cd4530cf-….log</code>, and a 3D render <code>V102-MTX-2.png</code> from January 2024.</li>
+<li>PLD folder: <code>v102-mtx-1.PLD</code> carries the name <code>v102-mtx-2</code>. Stale comments in the current source (section 7.2).</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="s10">10. Open questions</h2>
+<ul>
+<li>Is the programmer normally left fitted? If not, what level does <code>ROMCSX</code> settle at (item 2)?</li>
+<li>ROMx: is <code>2000–7FFF</code> at R = 6 the intended window, and are J2/J4 normally fitted? What goes in ROMx and in main-ROM block n (R = 3), i.e. the &quot;extensions&quot;?</li>
+<li>What drives the off-board <code>ROM7</code> cartridge select (a planned cartridge board?).</li>
+<li>PW1: same module as the Z80 SBC? Its input range against the silkscreen's 7.5–15 V.</li>
+<li>Fitted speed grades: ATF20V8B (-10 or -15), 28C256, Z80.</li>
+<li>Whether any board will decode the MTX group (RAM pages ≥ 2).</li>
+</ul>
+</article></div></section>
+</main>
+<footer><div class="wrap"><div class="bars"></div><p>NOVAZ80, by NOVA Embedded Solutions. A hobby project, built just for fun. <a href="../index.html">The story</a> · <a href="../credits.html">Credits</a></p></div></footer>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/viewer.js" defer></script>
+<script src="../assets/js/swipe.js" defer></script>
+</body>
+</html>

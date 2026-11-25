@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3-pad programmer design notes · NOVAZ80</title>
+<meta name="description" content="Design analysis of the NOVAZ80 3-pad programmer.">
+<meta name="theme-color" content="#0b0b0d">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" aria-label="Main"><div class="wrap"><a class="brand" href="../index.html">NOVAZ80</a>
+<ul><li><a href="../index.html#story">Story</a></li><li><a href="../design.html">Design</a></li><li><a href="../index.html#build">Build</a></li><li><a href="../index.html#bus">Bus</a></li><li><a href="../index.html#boards" aria-current="true">Boards</a></li></ul></div></nav>
+<main id="main">
+<section class="paper sec"><div class="wrap"><p><a class="more" href="pr2.html">← 3-pad programmer</a></p><article class="notes"><details class="toc"><summary>Contents</summary><ul><li><a href="#s0">0. Where this board sits in the NOVAZ80 project</a></li><li><a href="#s1">1. Summary</a></li><li><a href="#s2">2. Block diagram</a></li><li><a href="#s3">3. Parts (BoM)</a></li><li><a href="#s4">4. Subsystems</a></li><li><a href="#s5">5. Target-bus connectors</a></li><li><a href="#s6">6. Firmware (ISP_standard.cpp)</a></li><li><a href="#s7">7. PLD interaction (CPU boards)</a></li><li><a href="#s8">8. Observations and things to watch</a></li><li><a href="#s9">9. Open questions</a></li></ul></details><h1>NOVAZ80 ROM Programmer 2 (3-pad) — V102-PR2-0 (Rev 000)</h1>
+<p>Design analysis from <code>V102-PR2-0.net</code> (KiCad/Eeschema 9.0.7 export, 2026-11-25), the schematic (root sheet + <code>v102-con-pr2.kicad_sch</code> bus sheet), the BoM, the PCB file (<code>V102-PR2-0.kicad_pcb</code>) and the MCU firmware <code>ISP_standard.cpp</code>. DRC: 0 violations, 0 unconnected pads.</p>
+<p>Title block: <em>NOVA Z80 Project – v102-PR2</em>, NOVA Embedded Solutions, drawn 2023-06-03, Rev 000. No revision notes.</p>
+<p>Host side: the same <code>uploadROM.py</code> and batch file as V102-PR1-2 (see that document, section 7). The serial protocol is the same, so the change of programmer is transparent to the host.</p>
+<p>PLD: none on this board. The programmer lines it drives are decoded by the CPU boards' PLDs (<code>v102-z80-00</code>, <code>v102-6502-00</code>, <code>v102-mtx-2</code>), which were re-checked for this document; behaviour is as recorded in each CPU board's document.</p>
+<hr />
+<h2 id="s0">0. Where this board sits in the NOVAZ80 project</h2>
+<p>The <strong>original, slow</strong> in-circuit ROM programmer, and the predecessor of V102-PR1-2. It does the same job (burn the CPU board's EEPROM through the stack bus) but differs in two big ways:</p>
+<ol>
+<li><strong>Three pads side by side.</strong> Instead of being one square board in a stack, it is a 310 × 111 mm board with three NOVAZ80 board footprints (&quot;PAD A&quot;, &quot;PAD B&quot;, &quot;PAD C&quot;). All three pads are wired in parallel, so it is also a <strong>3-wide backplane</strong>: boards on different pads share one bus, and each pad can still carry its own stack.</li>
+<li><strong>Slow bus drive.</strong> The MCU (ATmega8) reaches A0–A15 and D0–D7 through <strong>three PCF8574 I²C port expanders</strong>, not through its own ports. Every bus access is an I²C transaction, which is what makes full-ROM uploads painfully slow (section 6.5).</li>
+</ol>
+<p>It is also compatible with the v101 board family, which used a slightly different connector arrangement (section 5.2).</p>
+<p>Status: built and used; superseded for speed by V102-PR1-2. Section 8 lists observations.</p>
+<hr />
+<h2 id="s1">1. Summary</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MCU</td>
+<td>ATmega8, TQFP-32, 16 MHz crystal</td>
+</tr>
+<tr>
+<td>USB</td>
+<td>FT232RL, self-powered (same arrangement as PR1)</td>
+</tr>
+<tr>
+<td>Image buffer</td>
+<td>23LC1024 SPI SRAM (128 KB) per the BoM; firmware also supports 23LC512</td>
+</tr>
+<tr>
+<td>Bus drive</td>
+<td>3 × PCF8574(T) I²C expanders: DATA <code>0x24</code>, ADHI <code>0x26</code>, ADLO <code>0x27</code></td>
+</tr>
+<tr>
+<td>ROM control lines</td>
+<td>Driven directly by MCU port D (ROMCSX, ROMWEX, ROMOEX, BUSRQ, RESX)</td>
+</tr>
+<tr>
+<td>Max image</td>
+<td>32 KB (firmware forces A15 = 0)</td>
+</tr>
+<tr>
+<td>Write mode</td>
+<td>Byte mode with DATA polling (page-write routine present but unused)</td>
+</tr>
+<tr>
+<td>Power</td>
+<td>+5 V <strong>from the bus only</strong>. The barrel jack feeds the bus <code>PWR</code> line, not this board</td>
+</tr>
+<tr>
+<td>PCB</td>
+<td>310 × 111 mm, 2-layer, +5 V pour top, GND pour bottom, 0.15 mm signal / 0.3 mm power tracks</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="s2">2. Block diagram</h2>
+<pre tabindex="0"><code>     USB mini-B J7
+          │ D+/D-       VBUS ─R8 4k7─┬─R7 10k─ GND
+          ▼                          │
+   ┌─────────────┐  RESET# ◄─────────┘ (FTDI held in reset when USB unplugged)
+   │  FT232RL    │ TXD ──► PD0/RXD
+   │  IC2        │ RXD ◄── PD1/TXD
+   │             │ DTR ──SW1──C3 100n──► RESET (auto-reset, switchable)
+   └─────────────┘
+                         ┌──────────────────────┐
+   16 MHz Y1 ───────────►│     ATmega8  IC1     │
+                         │                      │  I²C 1k pull-ups (R9, R10)
+   23LC1024 IC3 ◄─SPI───►│ PB2-5        PC4/PC5 ├──SDA/SCL──┬──► IC6 PCF8574 0x27 ─► A0–A7
+                         │                      │           ├──► IC5 PCF8574 0x26 ─► A8–A15
+                         │ PB0 RED  PB1 BLUE    │           └──► IC4 PCF8574 0x24 ◄─► D0–D7
+                         │ PD2 ROMCSX PD3 ROMWEX├──────────────────────────► PROG, ICPP
+                         │ PD5 ROMOEX PD6 BUSRQ │
+                         │ PD7 RESX             │
+                         └──────────────────────┘
+   All bus nets ──► PAD A ═ PAD B ═ PAD C (paralleled)
+   Barrel jack J1 ──► PWR (PROG pin 8, ICPP pin 2) ──► CPU board's power input
+   +5 V ◄── SPEC pin 2 (from the CPU board's DC-DC)
+</code></pre>
+<hr />
+<h2 id="s3">3. Parts (BoM)</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Ref</th>
+<th>Part</th>
+<th>Function</th>
+<th>Datasheet</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IC1</td>
+<td>ATmega8, TQFP-32</td>
+<td>Controller</td>
+<td><a href="https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2486-8-bit-AVR-microcontroller-ATmega8_L_datasheet.pdf">ATmega8</a></td>
+</tr>
+<tr>
+<td>IC2</td>
+<td>FT232RL, SSOP-28</td>
+<td>USB ↔ UART</td>
+<td><a href="https://ftdichip.com/wp-content/uploads/2020/08/DS_FT232R.pdf">FT232R</a></td>
+</tr>
+<tr>
+<td>IC3</td>
+<td>23LC1024, SOIC-8</td>
+<td>128 KB SPI SRAM image buffer</td>
+<td><a href="https://ww1.microchip.com/downloads/en/DeviceDoc/20005142C.pdf">23LC1024</a></td>
+</tr>
+<tr>
+<td>IC4, IC5, IC6</td>
+<td>PCF8574 (T), SOIC-16W</td>
+<td>I²C 8-bit quasi-bidirectional ports: DATA, ADHI, ADLO</td>
+<td><a href="https://www.nxp.com/docs/en/data-sheet/PCF8574_PCF8574A.pdf">PCF8574/PCF8574A</a></td>
+</tr>
+<tr>
+<td>Y1, C1, C2</td>
+<td>16 MHz HC49-SD + 2 × 22 pF</td>
+<td>MCU clock</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C3</td>
+<td>100 nF</td>
+<td>DTR auto-reset coupling</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C4–C8</td>
+<td>1 µF</td>
+<td>+5 V bypass (&quot;position adjacent to ICs&quot;)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C9</td>
+<td>100 nF</td>
+<td>FT232 3V3OUT decoupling</td>
+<td>—</td>
+</tr>
+<tr>
+<td>D1 / R1</td>
+<td>Green LED / 470 R</td>
+<td>+5 V present</td>
+<td>—</td>
+</tr>
+<tr>
+<td>D2 / R3</td>
+<td>Blue LED / 470 R</td>
+<td>Status (PB1)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>D3 / R4</td>
+<td>Red LED / 470 R</td>
+<td>Status (PB0)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R2</td>
+<td>10 k</td>
+<td>MCU RESET pull-up</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R5</td>
+<td>1 k</td>
+<td>SRAM /CS pull-up</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R6</td>
+<td>1 k</td>
+<td>SRAM SIO2 pull-up</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R7, R8</td>
+<td>10 k / 4k7</td>
+<td>VBUS sense divider → FT232 RESET#</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R9, R10</td>
+<td>1 k</td>
+<td>I²C SDA / SCL pull-ups</td>
+<td>—</td>
+</tr>
+<tr>
+<td>SW1</td>
+<td>SPDT slide (used as SPST)</td>
+<td>DTR auto-reset on/off</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J1</td>
+<td>Barrel jack with switch (Würth 6941xx301002)</td>
+<td>Stack power input onto <code>PWR</code>. Silkscreen &quot;DC IN – 7.5V to 18V&quot;</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J6</td>
+<td>2×3 IDC horizontal &quot;ICSP&quot;</td>
+<td>AVR ISP</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J7</td>
+<td>USB mini-B (Würth 65100516121)</td>
+<td>Host link</td>
+<td>—</td>
+</tr>
+<tr>
+<td>JA/JB/JC 1–444</td>
+<td>8-way &quot;11 mm&quot; stacking sockets, 12 per pad</td>
+<td>Bus (section 5)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>JA5, JB5, JC5</td>
+<td>1×15 pin header &quot;ICPP&quot;</td>
+<td><code>GND-PWR-ADDRHI-PROG</code> (section 5.2)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<p>Housekeeping: IC1's symbol is an ATmega168A-A (value changed to ATmega8) and its datasheet field points to the ATmega48A/88A/168A datasheet. IC4–IC6 descriptions say &quot;PCF8574A&quot; but the value and the firmware's <code>IO_TYPE 2</code> are the plain PCF8574(T).</p>
+<hr />
+<h2 id="s4">4. Subsystems</h2>
+<h3>4.1 Microcontroller (IC1, ATmega8)</h3>
+<ul>
+<li>16 MHz crystal, 22 pF loads. RESET: 10 k pull-up R2, also to ICSP pin 2 and via C3/SW1 to FT232 DTR.</li>
+<li>VCC, AVCC and AREF tied to +5 V. ADC unused (ADC6/7, PC0–PC3, PD4 unconnected).</li>
+<li><strong>Fuses</strong> (schematic and silkscreen): LF 0xBF, HF 0xC4, LB 0xCF. Decoded for the ATmega8:
+<ul>
+<li>LF 0xBF → CKSEL = 1111, SUT = 11 (external crystal, slow-rising power), <strong>BODEN programmed, BODLEVEL = 1 (2.7 V)</strong>.</li>
+<li>HF 0xC4 → SPIEN programmed, <strong>CKOPT programmed</strong> (full-swing oscillator, needed above 8 MHz), EESAVE programmed, BOOTSZ = 10 (256-word / 512-byte boot section), <strong>BOOTRST programmed</strong> (reset enters the bootloader). WDTON and RSTDISBL unprogrammed.</li>
+<li>LB 0xCF → BLB1 = 00 (boot section protected from the application), no memory lock. Typical Arduino-bootloader settings.</li>
+</ul>
+</li>
+<li>So, as on PR1, firmware is normally uploaded over USB via a serial bootloader with SW1 set for auto-reset; ICSP is the fallback.</li>
+</ul>
+<h3>4.2 USB-serial (IC2, FT232RL)</h3>
+<p>Same as PR1: VCC and VCCIO on the board's +5 V, VBUS only drives the R8/R7 divider into RESET#, so the FTDI chip is held in reset when USB is unplugged. <strong>USB does not power the board.</strong> TXD → PD0, RXD ← PD1. DTR → SW1 → C3 → RESET. CBUS0–4 and the modem lines are unused.</p>
+<p>Unlike PR1, the UART pins <strong>aren't shared with ISP</strong> (the ATmega8 programs through its SPI pins), so USB can stay plugged in while ISP-programming.</p>
+<p>The host script finds the programmer by &quot;Z80&quot; in the FT232 serial number, so this board's FT232 EEPROM must carry that string too (section 8, item 3).</p>
+<h3>4.3 Image buffer (IC3)</h3>
+<ul>
+<li>Hardware SPI: /CS = PB2 (/SS, 1 k pull-up R5), MOSI = PB3, MISO = PB4, SCK = PB5. /HOLD tied to +5 V, SIO2 pulled up (R6): plain SPI mode.</li>
+<li>The SPI bus is shared with ICSP J6. R5 keeps the SRAM deselected while the MCU is held in reset, so ISP works with the SRAM fitted.</li>
+<li>The SPI bus does <strong>not</strong> reach the AUX connector (the AUX pins are pass-through only, unlike PR1).</li>
+<li>Firmware: <code>SRAM_23LC SRAM(&amp;SPI, 10, …)</code>; Arduino pin 10 = PB2 in the standard ATmega8 map. ✓</li>
+<li>The 23LC512 uses 16-bit addresses and the 23LC1024 24-bit, so the firmware's <code>SRAM_TYPE</code> <strong>must match the fitted chip</strong> (section 6.1).</li>
+</ul>
+<h3>4.4 Bus port expanders (IC4–IC6, PCF8574)</h3>
+<ul>
+<li>I²C on PC4/SDA and PC5/SCL, 1 k pull-ups (R9, R10). <code>/INT</code> outputs unused.</li>
+<li>Addresses set by A2–A0 straps. The schematic notes both variants:</li>
+</ul>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>IC</th>
+<th>Role</th>
+<th>A2 A1 A0</th>
+<th>PCF8574T (<code>IO_TYPE 2</code>)</th>
+<th>PCF8574AT (<code>IO_TYPE 1</code>)</th>
+<th>Bus lines</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IC4</td>
+<td>DATA</td>
+<td>1 0 0</td>
+<td><code>0x24</code></td>
+<td><code>0x3C</code></td>
+<td>D0–D7 (P0–P7)</td>
+</tr>
+<tr>
+<td>IC5</td>
+<td>ADHI</td>
+<td>1 1 0</td>
+<td><code>0x26</code></td>
+<td><code>0x3E</code></td>
+<td>A8–A15 (P0–P7)</td>
+</tr>
+<tr>
+<td>IC6</td>
+<td>ADLO</td>
+<td>1 1 1</td>
+<td><code>0x27</code></td>
+<td><code>0x3F</code></td>
+<td>A0–A7 (P0–P7)</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>The PCF8574 outputs are quasi-bidirectional.</strong> A <code>0</code> is a strong sink (up to about 25 mA). A <code>1</code> is only a weak current source (roughly 30–300 µA, about 100 µA typical), with a brief strong pull-up during the I²C acknowledge that writes it. Writing <code>FFh</code> turns a port into an &quot;input&quot; with weak pull-ups. Consequences:
+<ul>
+<li>The card never drives the address or data bus hard high. With CMOS loads that's fine, and the Z80 and 6502 SBCs' 4k7 data pull-ups help.</li>
+<li><strong>The MTX board has 4k7 data pull-downs.</strong> A ~100 µA weak high into 4k7 only reaches about 0.5 V, so <code>1</code> bits written to an MTX ROM are likely to be read by the EEPROM as <code>0</code>. Expect verify failures on the MTX board (section 8, item 1).</li>
+<li>At power-up all 24 pins sit at weak-high, so the card places ~100 µA pull-ups on A0–A15 and D0–D7 at all times, even while the target runs. Harmless.</li>
+<li>A0–A7 and D0–D7 never float when the CPU releases the bus, which is a small improvement over PR1.</li>
+</ul>
+</li>
+</ul>
+<h3>4.5 ROM control lines</h3>
+<p>Driven directly from port D (push-pull), same polarities as PR1:</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Line</th>
+<th>MCU pin</th>
+<th>Arduino pin</th>
+<th>PROG pin</th>
+<th>ICPP pin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ROMCSX</td>
+<td>PD2</td>
+<td>2</td>
+<td>5</td>
+<td>13</td>
+</tr>
+<tr>
+<td>ROMWEX</td>
+<td>PD3</td>
+<td>3</td>
+<td>4</td>
+<td>12</td>
+</tr>
+<tr>
+<td>ROMOEX</td>
+<td>PD5</td>
+<td>5</td>
+<td>7</td>
+<td>15</td>
+</tr>
+<tr>
+<td>BUSRQ</td>
+<td>PD6</td>
+<td>6</td>
+<td>3</td>
+<td>11</td>
+</tr>
+<tr>
+<td>RESX</td>
+<td>PD7</td>
+<td>7</td>
+<td>6</td>
+<td>14</td>
+</tr>
+</tbody>
+</table></div>
+<p>These match the firmware's <code>#define</code>s. <code>#define LED 4</code> (PD4) is unused and PD4 is unconnected.</p>
+<h3>4.6 Power</h3>
+<ul>
+<li><strong>+5 V comes only from the bus</strong> (SPEC pin 2 on every pad), i.e. from the CPU board's DC-DC. There is no regulator on this board.</li>
+<li><strong>J1 doesn't power this board.</strong> Its centre pin goes to <code>PWR</code> (PROG pin 8 on all three pads and ICPP pin 2); sleeve and switch contact go to GND. <code>PWR</code> is the CPU board's raw jack input (Z80 SBC, 6502 SBC, MTX), so J1 is an <strong>alternative power entry for the whole machine</strong>: it feeds the CPU board's power switch and 5 V module, which then powers this card through SPEC pin 2.
+<ul>
+<li>Without a CPU board fitted, the card is unpowered even with J1 plugged in.</li>
+<li>On the MTX board the jack sleeve isn't board GND; through PR2 the return path is board GND directly, which bypasses SW2's second pole. That's fine electrically.</li>
+</ul>
+</li>
+<li>D1 (green) shows +5 V present.</li>
+<li>Bypass: five 1 µF for six ICs. Placement: C4/C6 at IC4/IC6, C7 near IC5, C8 between IC2 and IC3, C5 at IC3. IC1 has no capacitor right at its pins (nearest about 10 mm).</li>
+</ul>
+<h3>4.7 Indicators</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>LED</th>
+<th>Drive</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D1 green</td>
+<td>+5 V via 470 R</td>
+<td>Power</td>
+</tr>
+<tr>
+<td>D3 red</td>
+<td>PB0 via 470 R</td>
+<td>Status (6.3)</td>
+</tr>
+<tr>
+<td>D2 blue</td>
+<td>PB1 via 470 R</td>
+<td>Status (6.3)</td>
+</tr>
+</tbody>
+</table></div>
+<h3>4.8 ICSP (J6)</h3>
+<p>1 GND, 2 RST, 3 MOSI (PB3), 4 SCK (PB5), 5 <strong>+5 V direct</strong>, 6 MISO (PB4).
+Same mirrored-pin layout as PR1's J6 (standard 6-pin ISP numbered <em>n</em> ↔ 7−<em>n</em>), but carrying MOSI/MISO, as the ATmega8 requires. Pin 5 has <strong>no jumper</strong>: an ISP tool that supplies power would back-feed the whole stack's +5 V rail. There's no JTAG (the ATmega8 has none).</p>
+<hr />
+<h2 id="s5">5. Target-bus connectors</h2>
+<h3>5.1 Layout</h3>
+<p>Three identical pads at 105 mm pitch along the board (A left, B middle, C right). Each pad is the standard NOVAZ80 square footprint with four corner clusters, sockets on the bottom side. Every net is common to all three pads (section 5.3).</p>
+<p>The programmer electronics (MCU, FT232, SRAM, expanders, USB, ICSP, SW1, LEDs) sit on the <strong>top side inside pad C's area</strong>. The barrel jack is on top inside pad B's area. Silkscreen: &quot;IN-CIRCUIT PROGRAMMER&quot;, &quot;USB INTERFACE TO PC&quot;, &quot;MCU&quot;, &quot;TARGET&quot;, &quot;DESIGN REF: V102-PR2-0&quot;, &quot;NOVAZ80 PAD &quot;A/B/C&quot;&quot;.</p>
+<p>Per pad, the corner clusters are (pad A references; B and C use JB/JC):</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Corner</th>
+<th>Two parallel rows (2.54 mm apart)</th>
+<th>Third row at 90°</th>
+<th>Silkscreen</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Top-left</td>
+<td>JA1 ADDR (A0–A7), JA111 ADDR2 (A15…A8)</td>
+<td>JA11 ADDR (duplicate of JA1)</td>
+<td>ADDRLO / ADDRHI</td>
+</tr>
+<tr>
+<td>Top-right</td>
+<td>JA2 SPEC, JA222 PROG</td>
+<td>JA22 SPEC (duplicate of JA2)</td>
+<td>SPEC / PROG</td>
+</tr>
+<tr>
+<td>Bottom-left</td>
+<td>JA4 DATA, JA444 AUX</td>
+<td>JA44 DATA (duplicate of JA4)</td>
+<td>DATA / AUX</td>
+</tr>
+<tr>
+<td>Bottom-right</td>
+<td>JA3 CTRL, JA333 MTX</td>
+<td>JA33 CTRL (duplicate of JA3)</td>
+<td>CTRL / MTX</td>
+</tr>
+</tbody>
+</table></div>
+<p>Plus <strong>JA5 &quot;ICPP&quot;</strong>, a 1×15 header along the top edge of the pad, silkscreened <code>GND-PWR-ADDRHI-PROG</code>.</p>
+<p>Note the reference names are swapped relative to PR1: on PR1, J11 = ADDR2 and J111 = the ADDR duplicate; here X11 = the ADDR duplicate and X111 = ADDR2.</p>
+<h3>5.2 v101 compatibility</h3>
+<p>The designer states the board is compatible with the v101 variant, which used a slightly different connector. The PCB offers two connection patterns per pad:</p>
+<ul>
+<li><strong>v102:</strong> the two parallel rows in each corner (ADDR/ADDR2, SPEC/PROG, DATA/AUX, CTRL/MTX).</li>
+<li><strong>The 90° rows (ADDR, SPEC, DATA, CTRL) plus the ICPP header</strong> (GND, PWR, A8–A15, BUSRQ, ROMWEX, ROMCSX, RESX, ROMOEX), which together carry everything the programmer needs without the PROG and ADDR2 rows.</li>
+</ul>
+<p><strong>Confirmed by the designer:</strong> the second pattern is the v101 interface. The same arrangement on PR1 (J5 ICPP and the 90° rows) is therefore also the v101 connection.</p>
+<h3>5.3 Pin map (identical on all three pads)</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Conn</th>
+<th>Name</th>
+<th>Pins 1→8</th>
+<th>Connected on this board</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>X1 / X11</td>
+<td>ADDR</td>
+<td>A0 … A7</td>
+<td>IC6 (ADLO) P0–P7</td>
+</tr>
+<tr>
+<td>X111</td>
+<td>ADDR2</td>
+<td><strong>A15</strong> A14 … A9 <strong>A8</strong> (reversed)</td>
+<td>IC5 (ADHI) P7…P0</td>
+</tr>
+<tr>
+<td>X4 / X44</td>
+<td>DATA</td>
+<td>D0 … D7</td>
+<td>IC4 (DATA) P0–P7</td>
+</tr>
+<tr>
+<td>X222</td>
+<td>PROG</td>
+<td>SP3, ROM7, BUSRQ, ROMWEX, ROMCSX, RESX, ROMOEX, PWR</td>
+<td>3–7 to MCU (4.5); 8 = J1 centre; 1, 2 pass-through</td>
+</tr>
+<tr>
+<td>X2 / X22</td>
+<td>SPEC</td>
+<td>GND, +5V, VDPINTB, IEO1, IEO2, 4M, OUT0, KBDRST</td>
+<td>Power in; rest pass-through</td>
+</tr>
+<tr>
+<td>X3 / X33</td>
+<td>CTRL</td>
+<td>RSTB, CLK, M1B, MREQB, IORQB, RDB, WRB, INTB</td>
+<td>Pass-through</td>
+</tr>
+<tr>
+<td>X333</td>
+<td>MTX</td>
+<td>P0 P1 P2 P3 R0 R1 R2 CPM</td>
+<td>Pass-through</td>
+</tr>
+<tr>
+<td>X444</td>
+<td>AUX</td>
+<td>AUX1 … AUX8</td>
+<td>Pass-through (no SPI here)</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>X5 ICPP (1×15):</strong> 1 GND, 2 PWR, 3–10 A8–A15, 11 BUSRQ, 12 ROMWEX, 13 ROMCSX, 14 RESX, 15 ROMOEX. Identical to PR1's J5.</p>
+<h3>5.4 What &quot;paralleled pads&quot; means in use</h3>
+<ul>
+<li>Boards on pads A, B and C form <strong>one machine on one bus</strong>. Example: a CPU board on A, the I/O board on B, the VDP board on C, each optionally with more boards stacked above. All the stacking rules still apply (one CPU board per machine, one source of each driven signal such as <code>4M</code>, <code>OUT0</code>, <code>IEO1</code>).</li>
+<li>It is <strong>not</strong> a gang programmer: three CPU boards on three pads would fight on the address, data and control buses and the daisy chain. <em>To confirm with the designer that gang programming was never an intended use.</em></li>
+<li>Tall parts on this board (barrel jack J1 under pad B; USB J7, ICSP J6 and SW1 under pad C) sit under any board stacked on those pads. Check clearance against the 11 mm sockets.</li>
+</ul>
+<hr />
+<h2 id="s6">6. Firmware (<code>ISP_standard.cpp</code>)</h2>
+<p>Arduino framework for the ATmega8 (register names <code>TIMSK</code>, not <code>TIMSK1</code>). Libraries: <code>Wire</code>, <code>SPI</code>, <code>SRAM_23LC</code>. <code>LiquidCrystal_I2C</code> is included but unused.</p>
+<h3>6.1 Build switches</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Define</th>
+<th>Value in file</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SRAM_TYPE</code></td>
+<td>512</td>
+<td>23LC512. Comment: &quot;1024 for all (4) programmers EXCEPT 512 for green and stacking white&quot;</td>
+</tr>
+<tr>
+<td><code>IO_TYPE</code></td>
+<td>2</td>
+<td>PCF8574T addresses (<code>0x24/26/27</code>). 1 = PCF8574AT (<code>0x3C/3E/3F</code>), &quot;green&quot; board only</td>
+</tr>
+<tr>
+<td><code>BAUD_RATE</code></td>
+<td>57600</td>
+<td>Must match <code>uploadROM.py</code></td>
+</tr>
+<tr>
+<td><code>VERIFY_STEP</code></td>
+<td>10</td>
+<td>Echo every 10th byte</td>
+</tr>
+<tr>
+<td><code>VERIFY_ATTEMPTS</code></td>
+<td>1000</td>
+<td>Read retries per byte during verify</td>
+</tr>
+<tr>
+<td><code>ATTEMP_DELAY</code></td>
+<td>1 ms</td>
+<td>Delay between retries</td>
+</tr>
+<tr>
+<td><code>T_WRITE_SETUP/HOLD</code></td>
+<td>1 µs</td>
+<td></td>
+</tr>
+<tr>
+<td><code>T_READ_SETUP/HOLD</code></td>
+<td>2 µs</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p>The comment implies four programmers built from this design family with different fits:</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Board</th>
+<th>SRAM</th>
+<th>Expanders</th>
+<th><code>SRAM_TYPE</code></th>
+<th><code>IO_TYPE</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&quot;Green&quot;</td>
+<td>23LC512</td>
+<td>PCF8574AT</td>
+<td>512</td>
+<td>1</td>
+</tr>
+<tr>
+<td>&quot;Stacking white&quot;</td>
+<td>23LC512</td>
+<td>PCF8574T</td>
+<td>512</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Others (incl. this BoM)</td>
+<td>23LC1024</td>
+<td>PCF8574T</td>
+<td>1024</td>
+<td>2</td>
+</tr>
+</tbody>
+</table></div>
+<p>The designer reports the SRAM fitted varies between builds but is <strong>usually a 23LC512 (64 KB)</strong>, which matches the attached <code>SRAM_TYPE 512</code> build. The BoM's 23LC1024 needs <code>SRAM_TYPE 1024</code>. Check the chip on the board before flashing.</p>
+<h3>6.2 Main sequence (<code>loop()</code>)</h3>
+<ol>
+<li><strong><code>restartCPU()</code></strong> (red very fast). For 2 s it watches <code>RESX</code> as an input. If <code>RESX</code> goes high in that window, another programmer is resetting the target, so this one <strong>disables itself</strong>: both LEDs off, infinite loop, all port D pins left as inputs (status 7, &quot;disable v101-programmer&quot;). PR1's start-up pulse (RESX high 500 ms) falls inside that window, so if both are fitted and powered together, PR1 takes over and PR2 goes passive. Otherwise it pulses <code>RESX</code> high for 200 ms, releases it, and goes to slow red.</li>
+<li><strong>Receive</strong> (<code>readCode()</code>). Bytes go to SRAM until the last three are <code>XXX</code> (0x58 ×3). Blue slow once data starts. <strong>No timeout</strong> (PR1 gives up after 1 s of silence).</li>
+<li><strong>Echo</strong> (<code>verifyCode()</code>). 1 s pause, then SRAM[0], [10], [20] … with 500 µs spacing. Both LEDs fast.</li>
+<li><strong>Verdict.</strong> <code>v</code> → go. Anything else → leave <code>loop()</code> and run <code>restartCPU()</code> again (2.2 s).</li>
+<li><strong><code>takeBus()</code>.</strong> Preset ROMCSX low, ROMWEX high, ROMOEX low, RESX low, then make PD2/3/5/6/7 outputs, assert BUSRQ low, pulse RESX high 200 ms. No BUSAK check (none on the bus).</li>
+<li><strong><code>burnRom()</code></strong> (both slow). Byte mode for every byte (section 6.4). <code>u</code> every 2 %, <code>U</code> at the end. A DATA-poll timeout sends <code>T</code> and aborts (section 8, item 4).</li>
+<li>200 ms pause, then <strong><code>verifyRom()</code></strong>: each byte is read back up to 1000 times, 1 ms apart, until it matches. <code>g</code> every 2 %, then <code>p</code> (solid blue) or <code>f</code> (fast red), held for 3 s.</li>
+<li><strong><code>releaseBus()</code>.</strong> ROMOEX low, all three PCF8574s to <code>FFh</code> (weak-high inputs), BUSRQ high, RESX high 500 ms then low. Port D is <strong>left as outputs</strong>, driving the idle levels (section 8, item 6). Back to step 2 without repeating <code>restartCPU()</code>.</li>
+</ol>
+<p>Note <code>verifyRom()</code> returns <strong>1 on failure, 0 on success</strong>; the caller is consistent with this.</p>
+<h3>6.3 LED codes (Timer1 compare ISR)</h3>
+<p>Timer1 prescaler /64 (<code>TCCR1B = 0b011</code>; the comment saying /128 is wrong), compare 31 250 → 125 ms base period, as on PR1.</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th><code>status</code></th>
+<th>Red (PB0)</th>
+<th>Blue (PB1)</th>
+<th>State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>slow flash</td>
+<td>off</td>
+<td>Waiting for host</td>
+</tr>
+<tr>
+<td>1</td>
+<td>off</td>
+<td>slow flash</td>
+<td>Receiving</td>
+</tr>
+<tr>
+<td>2</td>
+<td>fast (÷3)</td>
+<td>fast (÷3), alternating with red</td>
+<td>Echo transfer</td>
+</tr>
+<tr>
+<td>3</td>
+<td>slow</td>
+<td>slow, alternating with red</td>
+<td>Burning / verifying ROM</td>
+</tr>
+<tr>
+<td>4</td>
+<td>fast (÷4)</td>
+<td>off</td>
+<td>Verify failed (the comment says &quot;solid red&quot;; it flashes)</td>
+</tr>
+<tr>
+<td>5</td>
+<td>off</td>
+<td>solid</td>
+<td>Success</td>
+</tr>
+<tr>
+<td>6</td>
+<td>very fast (÷6)</td>
+<td>unchanged</td>
+<td>Start-up reset, or write timeout</td>
+</tr>
+<tr>
+<td>7</td>
+<td>off</td>
+<td>off</td>
+<td>Disabled (another programmer present)</td>
+</tr>
+</tbody>
+</table></div>
+<h3>6.4 Bus cycles through the expanders</h3>
+<p><strong>Read</strong> (<code>readFromROM</code>, used for DATA polling and verify): DATA ← <code>FF</code> and a dummy read, ROMCSX high, ADHI ← A8–A14 (A15 forced 0), ADLO ← A0–A7, 2 µs, ROMOEX low, 2 µs, read DATA, ROMOEX high, ROMCSX low. <strong>5 I²C transactions.</strong></p>
+<p><strong>Byte write</strong> (<code>writeByte</code>): ROMOEX high, DATA ← <code>FF</code> and a dummy read, ROMCSX high, ADHI, ADLO, DATA ← byte, 1 µs, ROMWEX low 1 µs, ROMWEX high, ROMOEX low, ROMCSX low, dummy read; then <code>waitForCycle()</code> DATA-polls with repeated reads until the byte reads back (500 ms timeout). <strong>6 I²C transactions</strong> plus the polling.</p>
+<p><strong>Page write</strong> (<code>writePage</code>): sets ADHI once, then for 64 bytes 2 transactions each (ADLO, DATA), pulsing ROMCSX and ROMWEX together. Present but <strong>not called</strong>.</p>
+<h3>6.5 Why it is slow</h3>
+<ul>
+<li><code>setup()</code> calls <code>Wire.setClock(400000)</code> <strong>before</strong> <code>Wire.begin()</code>. In the standard AVR Wire library <code>begin()</code> re-initialises the TWI at the default 100 kHz, so the bus very likely runs at <strong>100 kHz</strong>, not 400 kHz. <em>To confirm with a scope on SCL.</em> (100 kHz is also the PCF8574's rated maximum, so this accident keeps it in spec.)</li>
+<li>At 100 kHz a 2-byte I²C transaction takes roughly 0.2–0.25 ms. So, approximately:
+<ul>
+<li>each write ≈ 1.5 ms of I²C traffic, plus the EEPROM's own byte-write cycle (AT28C256 t<sub>WC</sub> up to 10 ms), detected by polls of ≈ 1.1 ms each;</li>
+<li>a full 32 KB ROM therefore takes several minutes to burn, plus about 35–40 s to verify. <em>Figures are estimates.</em> The designer hasn't timed a full upload (&quot;too long, but it works — just very slow&quot;).</li>
+</ul>
+</li>
+<li><strong>Page mode can't work here</strong> (confirmed by the designer: the I²C-limited ATmega8 can't feed bytes fast enough before the EEPROM's page window times out; moving to the ATmega64A on PR1, which drives the bus directly, made 28C256 page mode possible): an AT28C256 page needs each byte within 150 µs of the last (t<sub>BLC</sub>), but each page byte costs two I²C transactions (≈ 0.45 ms at 100 kHz, still ≈ 0.12–0.15 ms at a true 400 kHz). That is why the page routine is unused and why PR1 moved the bus onto the MCU's own ports.</li>
+</ul>
+<h3>6.6 Serial protocol</h3>
+<p>Identical bytes to PR1 (<code>XXX</code> EOF, echo every 10th byte, <code>v</code>/<code>b</code>, <code>u</code>/<code>U</code>, <code>T</code>, <code>g</code>, <code>p</code>/<code>f</code>), which is why <code>uploadROM.py</code> works unchanged. Differences: 500 µs echo spacing (PR1 50 µs), a 1 s pause before the echo, and no receive timeout.</p>
+<hr />
+<h2 id="s7">7. PLD interaction (CPU boards)</h2>
+<p>No PLD on this board. The lines it drives behave on each CPU board as already documented:</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>CPU board</th>
+<th>ROMCSX</th>
+<th>RESX</th>
+<th>ROMOEX / ROMWEX</th>
+<th>BUSRQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Z80 SBC (<code>v102-z80-00</code>)</td>
+<td><code>!CSB0 = … # ROMCSX</code> (1 k pull-down)</td>
+<td><code>!RSTB = RESX # !RESB</code></td>
+<td>ROM pins direct</td>
+<td>Z80 /BUSRQ</td>
+</tr>
+<tr>
+<td>6502 SBC (<code>v102-6502-00</code>)</td>
+<td>forces ROM, masks RAM/VIA (not IORQB)</td>
+<td>via IC6A diode-OR</td>
+<td>ROM pins direct</td>
+<td>65C02 <code>BE</code></td>
+</tr>
+<tr>
+<td>MTX (<code>v102-mtx-2</code>)</td>
+<td>forces main ROM or ROMx via SW3 (no pull-down)</td>
+<td>via IC9</td>
+<td>both ROMs direct</td>
+<td>Z80 /BUSRQ</td>
+</tr>
+</tbody>
+</table></div>
+<p>Because PR2 forces A15 = 0, the image is limited to 32 KB, which covers all three boards (28C256 or smaller). The 6502 board's I/O-window issue during programming (6502 document, section 4.9) applies here too, and lasts longer because each byte takes milliseconds.</p>
+<hr />
+<h2 id="s8">8. Observations and things to watch</h2>
+<p>Most important first.</p>
+<ol>
+<li><strong>MTX data pull-downs vs PCF8574 weak highs.</strong> The MTX board's 4k7 data pull-downs hold any PCF8574 <code>1</code> near 0.5 V, so the EEPROM probably latches <code>0</code> in those bits. Verify would report <code>f</code>. PR2 hasn't been used on the MTX board (PR1 is the MTX programmer), so this is untested; the cure is a stronger high (a driver such as a 74HCT245 on the DATA expander) or weaker pull-downs on the MTX board.</li>
+<li><strong>Firmware build must match the fitted SRAM.</strong> Builds vary (usually 23LC512, as in the attached <code>SRAM_TYPE 512</code> file). A board with a 23LC1024 needs the 1024 build, or 16-bit addressing gives garbage and every echo check fails. Keep one source with a per-board config, or detect the SRAM size at start-up.</li>
+<li><strong>Two programmers → two &quot;Z80&quot; serial ports.</strong> If PR1 is stacked on a pad and both USB cables are connected, <code>uploadROM.py</code> finds two matching ports and aborts. The RESX self-disable keeps PR2 off the bus, but not off USB. Connect only one USB cable, or give PR2's FT232 a different serial string.</li>
+<li><strong>Write timeout leaves the bus held.</strong> On <code>T</code>, <code>loop()</code> exits without <code>releaseBus()</code>: BUSRQ stays low and the expanders keep driving. The target stays halted until power is cycled or another upload completes. Call <code>releaseBus()</code> before breaking out.</li>
+<li><strong>I²C clock order.</strong> <code>Wire.setClock()</code> must come after <code>Wire.begin()</code> to take effect (6.5). The PCF8574 is only rated to 100 kHz, so real speed needs a faster expander (e.g. the 1 MHz <a href="https://www.nxp.com/docs/en/data-sheet/PCA9674_PCA9674A.pdf">PCA9674</a>) or direct port drive, as on PR1.</li>
+<li><strong>Control lines left driven after release.</strong> Port D stays push-pull after <code>releaseBus()</code> (ROMCSX low, ROMWEX high, ROMOEX low, BUSRQ high, RESX low). These match the CPU boards' pull states, so it's harmless alone, but a second programmer on the bus would fight it. Return them to inputs as PR1 does.</li>
+<li><strong>12 V on <code>PWR</code> reaches more places.</strong> <code>PWR</code> is now on PROG pin 8 at three pads and on ICPP pin 2 at three pads, where it sits between GND (pin 1) and <strong>A8 (pin 3)</strong>. A one-pin offset on an ICPP plug puts 12 V onto an address line. If both J1 and the CPU board's own jack are plugged in, two adaptors are paralleled on <code>PWR</code>.</li>
+<li><strong>ICSP powers the whole stack.</strong> J6 pin 5 is wired straight to +5 V with no jumper, so a powered ISP tool back-feeds every board on all three pads.</li>
+<li><strong>BOD at 2.7 V with a 16 MHz clock.</strong> The ATmega8 is only rated for 16 MHz at ≥ 4.5 V. BODLEVEL = 0 (4.0 V) is safer. Same point as PR1.</li>
+<li><strong>EOF marker in data.</strong> As on PR1, any <code>XXX</code> in the binary ends reception early; with no receive timeout the leftover bytes are then taken as the echo verdict.</li>
+<li><strong>No SDP handling.</strong> An EEPROM with software data protection enabled gives <code>T</code> on the first byte.</li>
+<li><strong>Minor firmware points:</strong>
+<ul>
+<li><code>restartCPU()</code> stores <code>millis()</code> in a 16-bit <code>unsigned int</code>. After about 65 s of uptime the 2 s window and the disable check are skipped. Use <code>unsigned long</code>.</li>
+<li><code>readFromPCF()</code> returns an uninitialised byte if the expander doesn't answer.</li>
+<li>Unused globals (<code>dumpind</code>, <code>select</code>, <code>counter</code>, <code>testit</code>, <code>time</code>) and the <code>LiquidCrystal_I2C</code> include can go.</li>
+</ul>
+</li>
+<li><strong>I²C pull-ups of 1 k</strong> sink 5 mA, above the PCF8574's 3 mA V<sub>OL</sub> rating. It works on a short bus; 2k2–4k7 would be within spec.</li>
+<li><strong>Decoupling:</strong> no capacitor right at IC1. Add 100 nF at each IC in any respin.</li>
+<li><strong>Housekeeping:</strong> the folder holds <code>PHONO-SRC-00A-erc.rpt</code> (name from another project), <code>untitled.kicad_sch</code>, two <code>.kicad_pro</code> files (<code>V102-PR2-0.kicad_pro</code> and <code>V102-PR2-0-Nigel.kicad_pro</code>) and stale KiCad lock files (<code>~*.lck</code>). Schematic note says &quot;BYPASS DIODES&quot; for the 1 µF capacitors.</li>
+</ol>
+<hr />
+<h2 id="s9">9. Open questions</h2>
+<ul>
+<li>Actual SCL frequency (100 kHz expected, section 6.5).</li>
+<li>MTX compatibility is untested (item 1); keep PR1 for the MTX board.</li>
+</ul>
+<p>Resolved: SRAM varies by build, usually 23LC512; 90° rows + ICPP = v101 interface; full-ROM time not measured but &quot;works, just very slow&quot;; page mode abandoned because of the I²C speed limit (fixed on PR1 with the ATmega64A).</p>
+</article></div></section>
+</main>
+<footer><div class="wrap"><div class="bars"></div><p>NOVAZ80, by NOVA Embedded Solutions. A hobby project, built just for fun. <a href="../index.html">The story</a> · <a href="../credits.html">Credits</a></p></div></footer>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/viewer.js" defer></script>
+<script src="../assets/js/swipe.js" defer></script>
+</body>
+</html>

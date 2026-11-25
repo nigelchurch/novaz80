@@ -1,0 +1,1113 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>I/O board design notes · NOVAZ80</title>
+<meta name="description" content="Design analysis of the NOVAZ80 I/O board.">
+<meta name="theme-color" content="#0b0b0d">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" aria-label="Main"><div class="wrap"><a class="brand" href="../index.html">NOVAZ80</a>
+<ul><li><a href="../index.html#story">Story</a></li><li><a href="../design.html">Design</a></li><li><a href="../index.html#build">Build</a></li><li><a href="../index.html#bus">Bus</a></li><li><a href="../index.html#boards" aria-current="true">Boards</a></li></ul></div></nav>
+<main id="main">
+<section class="paper sec"><div class="wrap"><p><a class="more" href="io1.html">← I/O board</a></p><article class="notes"><details class="toc"><summary>Contents</summary><ul><li><a href="#s0">0. Where this board sits in the NOVAZ80 project</a></li><li><a href="#s1">1. Summary</a></li><li><a href="#s2">2. Block diagram</a></li><li><a href="#s3">3. Parts (BoM)</a></li><li><a href="#s4">4. Subsystems</a></li><li><a href="#s5">5. I/O map (from the PLD)</a></li><li><a href="#s6">6. Connectors</a></li><li><a href="#s7">7. PLD (IC4, GAL16V8) — pin use</a></li><li><a href="#s8">8. Timing notes</a></li><li><a href="#s9">9. Observations for the next revision</a></li><li><a href="#s10">10. Open questions</a></li></ul></details><h1>NOVAZ80 I/O Board — V102-IO1-0 (Rev 000)</h1>
+<p>Design analysis from <code>V102-IO1-0.net</code> (KiCad/Eeschema 9.0.7 export, 2026-11-25), the schematic, the BoM and the PCB file (<code>V102-IO1-0.kicad_pcb</code>). ERC: 0 errors / 0 warnings. DRC: 0 violations, 0 unconnected pads, 0 footprint errors.</p>
+<p>Title block: <em>NOVA Z80 Project – v102-IO1</em>, NOVA Embedded Solutions, drawn 2023-05-25, Rev 000.
+Change notes on the schematic:</p>
+<ol>
+<li>Added jumper to select divide by 12 or 13 for the baud master clock.</li>
+<li>Jumper to select the baud master from the bus 4 MHz line or the local oscillator.</li>
+<li>Added connectors for LCD/top board.</li>
+<li>Connected the MTX keyboard reset to SP2, now <code>KBDRST</code>.</li>
+</ol>
+<p>PLD: <code>V102-IO1-00.PLD</code> and <code>V102-IO1-00.jed</code>. The fuse map was decoded and matches the source equations (section 7).</p>
+<p>There is a second, different I/O board, <code>V102-IO2-0</code> (82C55 PPI, 20×4 LCD, 8 push buttons, GAL16V8). It is not covered here.</p>
+<hr />
+<h2 id="s0">0. Where this board sits in the NOVAZ80 project</h2>
+<p>The main optional I/O board, shared by the CPU boards. It adds:</p>
+<ul>
+<li>a <strong>Z80 SIO/0</strong> serial port, reachable over <strong>USB</strong> (FT232RL) or a <strong>DB9</strong> connector,</li>
+<li>a <strong>Z80 CTC</strong>, which also generates the serial baud clock and takes the <strong>VDP interrupt</strong> on channel 0 (as on a real MTX),</li>
+<li>a <strong>Z80 PIO</strong>: port A reads a <strong>PS/2 keyboard</strong> through a hardware deserialiser, port B is a general-purpose port,</li>
+<li>an 8-bit <strong>output latch</strong> (port C),</li>
+<li>decoded strobes for the <strong>custom MTX keyboard</strong> (10 × 8 matrix) on ports 05h/06h.</li>
+</ul>
+<p>Its I/O addresses (05h–13h) follow the Memotech MTX512 map, so in the MTX configuration this board supplies the MTX's CTC and keyboard ports. It doesn't clash with the Z80 SBC's own CTC (18h) and PIO (20h).</p>
+<p>This board is the <strong>head of the interrupt daisy chain</strong> (section 4.6). It takes +5 V from the stack and has no power supply of its own.</p>
+<p>Status: built, tested and in use. Section 9 collects observations for the planned 4-layer revision.</p>
+<hr />
+<h2 id="s1">1. Summary</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Serial</td>
+<td>Z84C40 SIO/0, channel B only. USB (FT232RL) or DB9 (logic-level, inverted), chosen by jumper SW1</td>
+</tr>
+<tr>
+<td>Timers</td>
+<td>Z84C30 CTC: ch0 = VDP interrupt, ch1/ch3 = user triggers, ch2 = baud generator for the SIO</td>
+</tr>
+<tr>
+<td>Parallel</td>
+<td>Z84C20 PIO: port A = PS/2 scan code, port B = user port J7</td>
+</tr>
+<tr>
+<td>Output latch</td>
+<td>74HC574 &quot;port C&quot; at 07h → J9</td>
+</tr>
+<tr>
+<td>Keyboard</td>
+<td>PS/2 (receive only, 2 × 74HC595 deserialiser) and MTX 10 × 8 keyboard strobes (J6)</td>
+</tr>
+<tr>
+<td>Baud clock</td>
+<td>24 MHz oscillator (or bus <code>4M</code>) ÷ 13 (or ÷ 12) by 74LS193 → 1.846 MHz into CTC ch2</td>
+</tr>
+<tr>
+<td>Glue</td>
+<td>GAL16V8 PLD: I/O decode only</td>
+</tr>
+<tr>
+<td>I/O ports</td>
+<td>05h–07h strobes/latch, 08h–0Bh CTC, 0Ch–0Fh SIO, 10h–13h PIO</td>
+</tr>
+<tr>
+<td>Power</td>
+<td>+5 V from the stack (SPEC pin 2)</td>
+</tr>
+<tr>
+<td>PCB</td>
+<td>100 × 100 mm, 2-layer, +5 V pour on F.Cu, GND pour on B.Cu, 0.15 mm signal tracks (0.3 mm for some power)</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="s2">2. Block diagram</h2>
+<pre tabindex="0"><code>                 ┌──────── stack bus: A0–A7, D0–D7, IORQ RD WR M1 CLK RSTB INTB ────────┐
+                 │                                                                      │
+   A0–A7, IORQ, RD, WR ─► PLD IC4 ─┬─► CTCB (08–0B)   ─► CTC /CE
+                                   ├─► SIOB (0C–0F)   ─► SIO /CE
+                                   ├─► PIOB (10–13)   ─► PIO /CE
+                                   ├─► PORTC (OUT 07) ─► 74HC574 CP ─► J9 PORT C
+                                   └─► IN5, IN6, OUT5 ─► J6 MTX/LCD (with D0–D7, KBDRST, +5V)
+
+ XT1 24 MHz ─JP2 1┐
+ bus 4M ─────JP2 3┴─JP2 2─► 74LS193 ÷13 (JP1 open / 1-2) or ÷12 (JP1 2-3) ─► &quot;1846K&quot; ─► CTC CLK/TRG2
+                                                                    CTC ZC/TO2 ─► SIO RxTxCB (ch B clock)
+
+ USB J10 ─► FT232RL ─TXD──► SW1 C ┐
+ DB9 pin 3 ─► U3 inv ────► SW1 A ┴─SW1 B─► SIO RxDB
+ SIO TxDB ─┬─► FT232 RXD
+           └─► U3 inv ─► DB9 pin 2
+
+ PS/2 J5: CLK ─► U2 inv ─► SERCLK ─► 2×74HC595 shift clock      DATA ─► 595 SER
+          SERCLK ─► D1/R1/C3 timeout (~100 µs) ─► U1 inv ─► LCLK ─► 595 latch ─► PIO PA0–7
+                                                 U1 inv ─► R5/C1 ~1 µs ─► U2 inv ─► PIO /ASTB
+
+ bus VDPINTB ─► CTC CLK/TRG0      J8: TRG1, TRG3 (1 k pull-ups), TO1
+ Daisy chain: +5V ─► CTC IEI ─ IEO ─► SIO IEI ─ IEO ─► PIO IEI ─ IEO ─► bus IEO1 (→ Z80 SBC CTC)
+</code></pre>
+<hr />
+<h2 id="s3">3. Parts (BoM)</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Ref</th>
+<th>Part</th>
+<th>Function</th>
+<th>Datasheet</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IC1</td>
+<td>Z84C2006 (Z80 PIO, 6 MHz CMOS), DIP-40</td>
+<td>Keyboard / user parallel port</td>
+<td><a href="http://www.zilog.com/docs/z80/ps0180.pdf">Z80 PIO PS0180</a></td>
+</tr>
+<tr>
+<td>IC2</td>
+<td>Z84C3006 (Z80 CTC, 6 MHz CMOS), DIP-28</td>
+<td>Timers, baud generator, VDP interrupt</td>
+<td><a href="http://www.zilog.com/docs/z80/ps0181.pdf">Z80 CTC PS0181</a></td>
+</tr>
+<tr>
+<td>IC3</td>
+<td>Z84C4006 (Z80 SIO/0, 6 MHz CMOS), DIP-40</td>
+<td>Serial port</td>
+<td><a href="http://www.zilog.com/docs/z80/ps0183.pdf">Z80 SIO PS0183</a>, <a href="http://www.zilog.com/docs/z80/um0081.pdf">Z80 peripherals UM0081</a></td>
+</tr>
+<tr>
+<td>IC4</td>
+<td>GAL16V8, DIP-20</td>
+<td>I/O decode PLD</td>
+<td><a href="http://ww1.microchip.com/downloads/en/devicedoc/atmel-0364-pld-atf16v8b-8bq-8bql-datasheet.pdf">ATF16V8B (compatible)</a></td>
+</tr>
+<tr>
+<td>IC5, IC6</td>
+<td>74HC595, DIP-16</td>
+<td>PS/2 serial-to-parallel (16-bit chain)</td>
+<td><a href="http://www.ti.com/lit/ds/symlink/sn74hc595.pdf">SN74HC595</a></td>
+</tr>
+<tr>
+<td>IC8</td>
+<td>74HC574N, DIP-20</td>
+<td>Port C output latch</td>
+<td><a href="https://www.ti.com/lit/ds/symlink/sn74hc574.pdf">SN74HC574</a></td>
+</tr>
+<tr>
+<td>IC10</td>
+<td>FT232RL, SSOP-28</td>
+<td>USB ↔ UART</td>
+<td><a href="https://ftdichip.com/wp-content/uploads/2020/08/DS_FT232R.pdf">FT232R</a></td>
+</tr>
+<tr>
+<td>IC11</td>
+<td>74LS193, DIP-16</td>
+<td>Baud master divider (÷12/÷13)</td>
+<td><a href="http://www.ti.com/lit/ds/symlink/sn74ls193.pdf">SN74LS193</a></td>
+</tr>
+<tr>
+<td>U1, U2, U3</td>
+<td>74LVC2G14, SOT-23-6</td>
+<td>Dual Schmitt inverters (PS/2 timing, DB9 level inversion)</td>
+<td><a href="https://www.ti.com/lit/ds/symlink/sn74lvc2g14.pdf">SN74LVC2G14</a></td>
+</tr>
+<tr>
+<td>XT1</td>
+<td>24 MHz full-can DIP-14 oscillator</td>
+<td>Baud master clock</td>
+<td><a href="http://cdn-reichelt.de/documents/datenblatt/B400/OSZI.pdf">Typical DIP-14 oscillator</a></td>
+</tr>
+<tr>
+<td>D1</td>
+<td>1N4148, SOD-123</td>
+<td>PS/2 timeout charge diode</td>
+<td><a href="https://www.vishay.com/docs/85748/1n4148w.pdf">1N4148W</a></td>
+</tr>
+<tr>
+<td>J10</td>
+<td>USB mini-B, Würth 65100516121</td>
+<td>Host serial link</td>
+<td><a href="https://www.we-online.com/components/products/datasheet/65100516121.pdf">Würth 65100516121</a></td>
+</tr>
+<tr>
+<td>J12</td>
+<td>DB9 female, right-angle</td>
+<td>&quot;RS232&quot; (logic level, see 4.3)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J5</td>
+<td>1×6 right-angle socket</td>
+<td>PS/2 keyboard</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J6</td>
+<td>2×7 IDC header</td>
+<td>&quot;MTX/LCD&quot;: custom MTX keyboard (LCD use abandoned)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J7</td>
+<td>2×9 socket</td>
+<td>PIO port B</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J8</td>
+<td>1×4 socket</td>
+<td>CTC &quot;Timer&quot;</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J9</td>
+<td>2×8 socket</td>
+<td>Port C latch outputs</td>
+<td>—</td>
+</tr>
+<tr>
+<td>SW1</td>
+<td>1×3 pin header (jumper)</td>
+<td>SIO RxD source: USB or DB9</td>
+<td>—</td>
+</tr>
+<tr>
+<td>JP1</td>
+<td>3-pad solder jumper (open as supplied)</td>
+<td>÷13 / ÷12 select</td>
+<td>—</td>
+</tr>
+<tr>
+<td>JP2</td>
+<td>1×3 socket (jumper)</td>
+<td>Baud master source: 24 MHz or bus 4M</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J1–J4, J11, J22, J33, J44</td>
+<td>8-way &quot;11 mm&quot; stacking sockets (bottom side)</td>
+<td>Stack bus (section 6)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C4–C8</td>
+<td>1 µF 1206</td>
+<td>+5 V bypass (the only bypass caps)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C2</td>
+<td>1 µF</td>
+<td>FT232 3V3OUT decoupling</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C3 / R1</td>
+<td>47 nF / 2k2</td>
+<td>PS/2 end-of-frame timeout</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C1 / R5</td>
+<td>1 nF / 1 k</td>
+<td>PS/2 strobe delay (~1 µs)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R2, R4</td>
+<td>1 k</td>
+<td>Pull-ups on CTC TRG1, TRG3</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R3, R6</td>
+<td>10 k / 4k7</td>
+<td>VBUS sense divider → FT232 RESET#</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<p>The SIO part number Z84C4006 is the SIO/0 bond-out (channel B has a combined RxTxCB clock pin and keeps DTRB and SYNCB), which matches the pin names in the netlist.</p>
+<hr />
+<h2 id="s4">4. Subsystems</h2>
+<h3>4.1 Address decode (IC4)</h3>
+<p>See section 7. All selects are I/O only (<code>/IORQ</code>), 8-bit decode (A0–A7). <code>/M1</code> isn't a PLD input.</p>
+<h3>4.2 SIO (IC3) — serial port</h3>
+<ul>
+<li><code>B/A</code> = A0, <code>C/D</code> = A1: <code>0Ch</code> ch A data, <code>0Dh</code> ch B data, <code>0Eh</code> ch A control, <code>0Fh</code> ch B control.</li>
+<li><code>/CE</code> = SIOB. <code>/RESET</code> = <code>RSTB</code>. <code>/M1</code>, <code>/IORQ</code>, <code>/RD</code>, <code>CLK</code>, <code>/INT</code> from the bus.</li>
+<li><strong>Channel B</strong> is the only channel used:
+<ul>
+<li><code>RxDB</code> ← SW1 common (USB or DB9).</li>
+<li><code>TxDB</code> → FT232 RXD <strong>and</strong> U3 → DB9 pin 2, both at once.</li>
+<li><code>RxTxCB</code> ← CTC <code>ZC/TO2</code> (the baud clock, section 4.4).</li>
+<li><code>CTSB</code>, <code>DCDB</code>, <code>SYNCB</code> tied to +5 V (inactive). <code>DTRB</code>, <code>RTSB</code>, <code>W/RDYB</code> not connected. There is <strong>no hardware flow control</strong>, and Auto Enables must stay off (with CTS held inactive it would block the transmitter).</li>
+</ul>
+</li>
+<li><strong>Channel A is unused:</strong> <code>RxDA</code> tied to GND, <code>TxDA</code> open, <code>RxCA</code>/<code>TxCA</code>/<code>SYNCA</code>/<code>CTSA</code>/<code>DCDA</code> tied to +5 V.</li>
+</ul>
+<h3>4.3 Serial physical layer</h3>
+<ul>
+<li><strong>USB:</strong> FT232RL (IC10), same arrangement as the programmer: VCC and VCCIO on +5 V (self-powered), VBUS only feeds the R6/R3 divider into RESET# (≈ 3.4 V), so the FTDI chip is held in reset when USB is unplugged. USB doesn't power the board. CBUS0–4, DTR/RTS/CTS/DSR/DCD/RI unused. ID, TEST, AGND and shield grounded.</li>
+<li><strong>DB9 (J12):</strong> U3 (74LVC2G14) inverts in both directions: SIO TxDB → pin 2, pin 3 → SW1 A. Pin 5 and the shell are GND. Other pins are not connected.
+<ul>
+<li>The levels are <strong>0/5 V, inverted</strong>, i.e. &quot;TTL RS-232&quot;. There is no MAX232-type level shifter. Real RS-232 on pin 3 (±3 to ±15 V) exceeds the 74LVC2G14's input rating (−0.5 V to 6.5 V). See section 9, item 1.</li>
+<li>Pin 2 output and pin 3 input are the DCE (female) convention, so a straight cable to a PC's DB9 male works.</li>
+</ul>
+</li>
+<li><strong>SW1</strong> (a 1×3 header used as a jumper): B (common) = SIO RxDB. A = DB9 (via U3). C = USB (FT232 TXD). Link B–C for USB, B–A for DB9. With no link, RxDB floats.</li>
+</ul>
+<h3>4.4 Baud clock (XT1, IC11, CTC ch2)</h3>
+<ul>
+<li><strong>JP2</strong> &quot;Primary BAUD clock&quot;: 1–2 = local 24 MHz (XT1), 3–2 = bus <code>4M</code> (SPEC pin 6). The centre pin drives the 74LS193's DOWN clock.</li>
+<li><strong>IC11 74LS193</strong> is a down counter that reloads itself: <code>/BO</code> → <code>/LOAD</code>, UP tied high, CLR tied low. Preset inputs D = 1, C = 1, B = 0, A = JP1.
+<ul>
+<li><strong>JP1</strong> (solder jumper, open as supplied) sets the preset to 13 (1–2, +5 V) or 12 (3–2, GND). Silkscreen note: 1–2 &quot;Div by 13&quot;, 3–2 &quot;Div by 12&quot;.</li>
+<li><strong>Why the jumper exists (designer):</strong> different logic families of the '193 behave differently with <code>/BO</code> wired to <code>/LOAD</code>. The jumper lets any family be fitted and still give the intended division. The likely mechanism: in some families the zero state lasts only a glitch (division = preset), while in others it lasts a full clock (division = preset + 1). So the preset that gives the target division depends on the part fitted. With the fitted 74LS193, preset 13 (JP1 open or 1–2; an open LS input floats high) gives ÷13.</li>
+<li>Output QD → CTC <code>CLK/TRG2</code> (IC2 pin 21), net named <code>1846K</code> (1846 kHz = 1.846 MHz, i.e. ÷13). QA–QC and <code>/CO</code> are unused.</li>
+</ul>
+</li>
+<li><strong>24 MHz ÷ 13 = 1.846 MHz.</strong> The CTC counts this in counter mode with time constant N, and <code>ZC/TO2</code> clocks the SIO. With the SIO in ×16 mode:</li>
+</ul>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>N</th>
+<th>Baud</th>
+<th></th>
+<th>N</th>
+<th>Baud</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>115 385</td>
+<td></td>
+<td>12</td>
+<td>9 615</td>
+</tr>
+<tr>
+<td>2</td>
+<td>57 692</td>
+<td></td>
+<td>24</td>
+<td>4 808</td>
+</tr>
+<tr>
+<td>3</td>
+<td>38 462</td>
+<td></td>
+<td>48</td>
+<td>2 404</td>
+</tr>
+<tr>
+<td>6</td>
+<td>19 231</td>
+<td></td>
+<td>96</td>
+<td>1 202</td>
+</tr>
+</tbody>
+</table></div>
+<p>Every rate is +0.16 % from the standard value, well within tolerance.</p>
+<ul>
+<li>With the bus <code>4M</code> source: 4 MHz ÷ 13 ÷ 16 = 19 231 baud maximum (N = 1).</li>
+<li>The ROM sets up the CTC for <strong>9600 baud</strong> on <code>SIOCLK</code>. The time constant has to match the actual division:</li>
+</ul>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Actual division</th>
+<th>Baud master</th>
+<th>CTC time constant for 9600 (SIO ×16)</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>÷13</td>
+<td>1.846 MHz</td>
+<td><strong>12</strong></td>
+<td>9615 (+0.16 %)</td>
+</tr>
+<tr>
+<td>÷12</td>
+<td>2.000 MHz</td>
+<td><strong>13</strong></td>
+<td>9615 (+0.16 %)</td>
+</tr>
+</tbody>
+</table></div>
+<p>If the ROM's constant doesn't match the division the board actually produces, the rate is off by about 8 % and serial fails. Check IC2 pin 21 with a frequency counter or scope after changing the '193's family or JP1.</p>
+<ul>
+<li>÷13 is preferred: 2.0 MHz is exactly the CTC's counter-mode limit at a 4 MHz bus clock, and only ÷13 gives the higher standard rates (table above).</li>
+<li><strong>Constraint:</strong> in counter mode the CTC's trigger input must be slower than half its <code>CLK</code> (the bus CPU clock). At 4 MHz that's 2 MHz, so 1.846 MHz is just inside. A CPU board running the bus clock below about 3.7 MHz can't count the baud master (section 9, item 4).</li>
+<li>Who drives <code>4M</code> on the bus is still open. The Z80 SBC only consumes it (JJP1).</li>
+</ul>
+<h3>4.5 CTC (IC2)</h3>
+<ul>
+<li><code>CS0</code> = A0, <code>CS1</code> = A1: channels 0–3 at <code>08h</code>–<code>0Bh</code>. <code>/CE</code> = CTCB. <code>/RESET</code> = <code>RSTB</code>.</li>
+</ul>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Channel</th>
+<th>CLK/TRG</th>
+<th>ZC/TO</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><strong><code>VDPINTB</code></strong> (bus SPEC pin 3)</td>
+<td>not connected</td>
+</tr>
+<tr>
+<td>1</td>
+<td>J8 pin 2 (<code>USERT1</code>, 1 k pull-up R2)</td>
+<td>J8 pin 4 (<code>TIMER1</code>)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>baud master <code>1846K</code></td>
+<td>SIO <code>RxTxCB</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>J8 pin 3 (<code>USERT3</code>, 1 k pull-up R4)</td>
+<td>(CTC has no TO3)</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>VDP interrupt:</strong> <code>VDPINTB</code> drives channel 0's trigger, as on a real MTX. Software sets channel 0 to counter mode, time constant 1, interrupt enabled, so each VDP frame interrupt becomes a CTC interrupt with its own IM2 vector. This answers the overview's open question for any machine that has this board fitted. There is no pull-up on <code>VDPINTB</code> here. <em>To confirm</em> on the VDP board.</li>
+</ul>
+<h3>4.6 Interrupt daisy chain</h3>
+<p><code>+5V</code> → <strong>CTC</strong> IEI → CTC IEO → <strong>SIO</strong> IEI → SIO IEO → <strong>PIO</strong> IEI → PIO IEO → bus <strong><code>IEO1</code></strong> (SPEC pin 4).</p>
+<p>With the Z80 SBC, the full chain is therefore:</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Device</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 (highest)</td>
+<td>IO1 CTC (VDP, timers, baud)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>IO1 SIO</td>
+</tr>
+<tr>
+<td>3</td>
+<td>IO1 PIO (keyboard, port B)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Z80 SBC CTC</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Z80 SBC PIO</td>
+</tr>
+<tr>
+<td>6</td>
+<td>whatever takes <code>IEO2</code></td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li>The CTC's IEI is tied high, so this board <strong>must be at the head of the chain</strong>. Only one board in a stack can do this.</li>
+<li>The PIO's IEO drives <code>IEO1</code>, which the Z80 SBC also pulls up with R13 (1 k). That costs about 5 mA while IEO is low. Harmless.</li>
+<li><code>IEO2</code> only passes through this board.</li>
+<li>All three parts drive the wired-OR <code>INTB</code> (open-drain).</li>
+</ul>
+<h3>4.7 PIO (IC1)</h3>
+<ul>
+<li><code>B/A</code> = A0, <code>C/D</code> = A1: <code>10h</code> port A data, <code>11h</code> port B data, <code>12h</code> port A control, <code>13h</code> port B control.</li>
+<li><code>/CE</code> = PIOB. <code>/M1</code>, <code>/IORQ</code>, <code>/RD</code>, <code>CLK</code>, <code>/INT</code> from the bus. No reset pin (the PIO resets on <code>/M1</code> without <code>/RD</code> or <code>/IORQ</code>).</li>
+<li><strong>Port A</strong> = PS/2 scan code (<code>KB0</code>–<code>KB7</code>) from the 74HC595s. <code>/ASTB</code> = <code>KBDINT</code>. Use <strong>mode 1 (input)</strong> with interrupt enabled. <code>ARDY</code> not connected.</li>
+<li><strong>Port B</strong> = J7 (any mode). <code>/BSTB</code> = J7 pin 2 (<code>PBINT</code>), <strong>no pull-up</strong>. <code>BRDY</code> not connected.</li>
+</ul>
+<h3>4.8 PS/2 keyboard deserialiser</h3>
+<p>Receive-only, no CPU bit-banging: the hardware assembles each scan code and hands the PIO a byte with a strobe.</p>
+<ol>
+<li><strong>Shift.</strong> <code>KBDCLK</code> is inverted by U2 to <code>SERCLK</code>, which clocks both 74HC595s (IC5 → IC6, 16-bit chain). PS/2 data is valid on the falling clock edge, which is the 595's rising <code>SRCLK</code> edge. <code>KBDATA</code> goes straight to IC5 <code>SER</code>.</li>
+<li><strong>End-of-frame timeout.</strong> While clock pulses arrive, D1 charges C3 (47 nF) each time <code>SERCLK</code> goes high, and R1 (2k2) discharges it in between (τ ≈ 100 µs). C3 stays above U1's threshold during a frame (clock period 60–100 µs). About <strong>100 µs after the last clock</strong> it falls below, and U1 drives <code>LCLK</code> high.</li>
+<li><strong>Latch.</strong> <code>LCLK</code> rising clocks the 595s' output registers, so the new byte appears on PA0–PA7.</li>
+<li><strong>Strobe.</strong> U1's second inverter drives R5/C1 (≈ 1 µs) into U2's second inverter → <code>KBDINT</code> (<code>/ASTB</code>). <code>/ASTB</code> goes low at the start of each frame and rises about 1 µs after the latch, so the PIO captures the new byte on the rising edge and interrupts.</li>
+</ol>
+<p>Bit placement after an 11-bit frame (start, D0–D7, parity, stop):</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>595 output</th>
+<th>Frame bit</th>
+<th>PIO</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IC6 QC</td>
+<td>start</td>
+<td>not connected</td>
+</tr>
+<tr>
+<td>IC6 QB, QA</td>
+<td>D0, D1</td>
+<td>PA0, PA1</td>
+</tr>
+<tr>
+<td>IC5 QH … QC</td>
+<td>D2 … D7</td>
+<td>PA2 … PA7</td>
+</tr>
+<tr>
+<td>IC5 QB</td>
+<td>parity</td>
+<td>not connected</td>
+</tr>
+<tr>
+<td>IC5 QA</td>
+<td>stop</td>
+<td>not connected</td>
+</tr>
+</tbody>
+</table></div>
+<p>So port A reads the scan code byte directly.</p>
+<ul>
+<li>Each frame rewrites every used position and the latch is triggered by inactivity, so the deserialiser re-synchronises on every frame. A noise edge only corrupts that one frame.</li>
+<li><strong>Not checked:</strong> start, parity, stop. <strong>Not possible:</strong> host → keyboard commands (LEDs, reset, scan-code set), because the board can't drive clock or data.</li>
+<li>The 595 output register is random at power-up. The first valid byte is normally the keyboard's <code>AAh</code> self-test result.</li>
+<li>J5 pinout: 1 DATA, 2 n/c, 3 GND, 4 +5 V, 5 CLK, 6 n/c. This is the PS/2 mini-DIN pin numbering, presumably for a PS/2 socket breakout. <strong>No pull-ups on CLK or DATA</strong> on this board (section 9, item 3).</li>
+</ul>
+<h3>4.9 Port C latch (IC8)</h3>
+<ul>
+<li>74HC574, D0–D7 from the bus, <code>CP</code> = PLD <code>PORTC</code> (low during <code>OUT (07h)</code>, rising at the end of <code>/WR</code>), <code>/OE</code> tied low.</li>
+<li>Q0–Q7 → J9 even pins. <strong>Write-only, no reset</strong>: outputs are random at power-up until the first <code>OUT (07h)</code>.</li>
+</ul>
+<h3>4.10 MTX keyboard connector (J6, &quot;MTX/LCD&quot;)</h3>
+<p>D0–D7 directly from the data bus, plus PLD strobes <code>IN5</code> (read 05h), <code>IN6</code> (read 06h), <code>OUT5</code> (write 05h), <code>KBDRST</code>, +5 V and GND.</p>
+<ul>
+<li><strong>Use (designer):</strong> the interface to the <strong>custom MTX keyboard</strong>, a <strong>10 × 8 matrix</strong>. It was also meant for an LCD peripheral, but that attempt failed, so J6 is the MTX keyboard connector in practice.</li>
+<li>Ports 05h/06h are the MTX512 keyboard ports. Expected use: <code>OUT (05h)</code> latches the 8 drive lines; <code>IN (05h)</code> reads 8 sense lines and <code>IN (06h)</code> reads the remaining 2. The drive latch and sense buffers are on the keyboard side. <em>To confirm with the keyboard's design.</em></li>
+<li><code>KBDRST</code> (SPEC pin 8) carries the keyboard's reset key to the CPU board's MAX811 <code>/MR</code>.</li>
+<li>D0–D7 go out on the cable unbuffered (section 9, item 8).</li>
+</ul>
+<h3>4.11 Power</h3>
+<ul>
+<li>+5 V only, from SPEC pin 2. No regulator, no switch.</li>
+<li>Bypass: C4–C8 (1 µF) for 11 ICs plus the oscillator.</li>
+<li>Copper: +5 V pour on F.Cu, GND pour on B.Cu.</li>
+</ul>
+<hr />
+<h2 id="s5">5. I/O map (from the PLD)</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Read</th>
+<th>Write</th>
+<th>Device</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>05h</code></td>
+<td><code>IN5</code> strobe (J6 pin 4)</td>
+<td><code>OUT5</code> strobe (J6 pin 3)</td>
+<td>MTX keyboard sense / drive</td>
+</tr>
+<tr>
+<td><code>06h</code></td>
+<td><code>IN6</code> strobe (J6 pin 2)</td>
+<td>—</td>
+<td>MTX keyboard sense (high bits)</td>
+</tr>
+<tr>
+<td><code>07h</code></td>
+<td>—</td>
+<td>Port C latch → J9</td>
+<td>74HC574</td>
+</tr>
+<tr>
+<td><code>08h</code>–<code>0Bh</code></td>
+<td>CTC ch 0–3</td>
+<td>CTC ch 0–3</td>
+<td>IC2</td>
+</tr>
+<tr>
+<td><code>0Ch</code> / <code>0Dh</code></td>
+<td>SIO ch A / ch B data</td>
+<td>same</td>
+<td>IC3</td>
+</tr>
+<tr>
+<td><code>0Eh</code> / <code>0Fh</code></td>
+<td>SIO ch A / ch B control</td>
+<td>same</td>
+<td>IC3</td>
+</tr>
+<tr>
+<td><code>10h</code> / <code>11h</code></td>
+<td>PIO port A (keyboard) / port B data</td>
+<td>same</td>
+<td>IC1</td>
+</tr>
+<tr>
+<td><code>12h</code> / <code>13h</code></td>
+<td>PIO port A / port B control</td>
+<td>same</td>
+<td>IC1</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li>Decode is on A0–A7 only, so the map repeats for any value of A8–A15.</li>
+<li>No overlap with the Z80 SBC (CTC <code>18h</code>, PIO <code>20h</code>).</li>
+<li>05h–0Bh match the MTX512 assignments (keyboard and CTC). <em>Confirm 0Ch–13h against the MTX board's map when it's documented.</em></li>
+</ul>
+<hr />
+<h2 id="s6">6. Connectors</h2>
+<h3>6.1 Stack bus</h3>
+<p>One footprint per group, bottom side, same corner layout as the Z80 SBC. Every group passes through.</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Corner</th>
+<th>Connectors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Top-left</td>
+<td>J1 ADDR, J11 ADDR2</td>
+</tr>
+<tr>
+<td>Top-right</td>
+<td>J2 SPEC, J22 PROG</td>
+</tr>
+<tr>
+<td>Bottom-left</td>
+<td>J4 DATA, J44 AUX (silkscreen &quot;SPARE&quot;)</td>
+</tr>
+<tr>
+<td>Bottom-right</td>
+<td>J3 CTRL, J33 MTX</td>
+</tr>
+</tbody>
+</table></div>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Conn</th>
+<th>Name</th>
+<th>Pins 1→8</th>
+<th>Use on this board</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>J1</td>
+<td>ADDR</td>
+<td>A0 … A7</td>
+<td>A0/A1 → PIO, CTC, SIO; A0–A7 → PLD</td>
+</tr>
+<tr>
+<td>J11</td>
+<td>ADDR2</td>
+<td>A15 … A8 (reversed)</td>
+<td>Pass-through</td>
+</tr>
+<tr>
+<td>J4</td>
+<td>DATA</td>
+<td>D0 … D7</td>
+<td>PIO, CTC, SIO, 74HC574, J6</td>
+</tr>
+<tr>
+<td>J3</td>
+<td>CTRL</td>
+<td>RSTB, CLK, M1B, MREQB, IORQB, RDB, WRB, INTB</td>
+<td>RSTB → CTC, SIO reset. CLK, M1B → PIO/CTC/SIO. IORQB, RDB → peripherals + PLD. WRB → PLD only. INTB ← all three. MREQB pass-through</td>
+</tr>
+<tr>
+<td>J2</td>
+<td>SPEC</td>
+<td>GND, +5V, VDPINTB, IEO1, IEO2, 4M, OUT0, KBDRST</td>
+<td>+5 V <strong>in</strong>. VDPINTB → CTC TRG0. IEO1 ← PIO IEO. 4M → JP2-3. KBDRST ↔ J6-13. IEO2, OUT0 pass-through</td>
+</tr>
+<tr>
+<td>J22</td>
+<td>PROG</td>
+<td>–, ROM7, BUSRQ, ROMWEX, ROMCSX, RESX, ROMOEX, PWR</td>
+<td>Pass-through only (PWR carries 12 V from the CPU board)</td>
+</tr>
+<tr>
+<td>J33</td>
+<td>MTX</td>
+<td>P0 P1 P2 P3 R0 R1 R2 CPM</td>
+<td>Pass-through</td>
+</tr>
+<tr>
+<td>J44</td>
+<td>AUX</td>
+<td>8 × not connected</td>
+<td>Pass-through (programmer SPI on pins 3–5)</td>
+</tr>
+</tbody>
+</table></div>
+<h3>6.2 J5 — PS/2 (1×6 right-angle socket)</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Pin</th>
+<th>Signal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>KBDATA → IC5 SER</td>
+</tr>
+<tr>
+<td>2</td>
+<td>n/c</td>
+</tr>
+<tr>
+<td>3</td>
+<td>GND</td>
+</tr>
+<tr>
+<td>4</td>
+<td>+5 V</td>
+</tr>
+<tr>
+<td>5</td>
+<td>KBDCLK → U2</td>
+</tr>
+<tr>
+<td>6</td>
+<td>n/c</td>
+</tr>
+</tbody>
+</table></div>
+<h3>6.3 J6 — MTX keyboard (&quot;MTX/LCD&quot;, 2×7 IDC)</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Pin</th>
+<th>Signal</th>
+<th>Pin</th>
+<th>Signal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>GND</td>
+<td>2</td>
+<td>IN6 (read 06h, active low)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>OUT5 (write 05h, active low)</td>
+<td>4</td>
+<td>IN5 (read 05h, active low)</td>
+</tr>
+<tr>
+<td>5</td>
+<td>D0</td>
+<td>6</td>
+<td>D7</td>
+</tr>
+<tr>
+<td>7</td>
+<td>D1</td>
+<td>8</td>
+<td>D6</td>
+</tr>
+<tr>
+<td>9</td>
+<td>D2</td>
+<td>10</td>
+<td>D5</td>
+</tr>
+<tr>
+<td>11</td>
+<td>D3</td>
+<td>12</td>
+<td>D4</td>
+</tr>
+<tr>
+<td>13</td>
+<td>KBDRST</td>
+<td>14</td>
+<td>+5 V</td>
+</tr>
+</tbody>
+</table></div>
+<h3>6.4 J7 — PIO port B (2×9)</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Pins</th>
+<th>Signal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2</td>
+<td>/BSTB (<code>PBINT</code>, no pull-up)</td>
+</tr>
+<tr>
+<td>4, 6, 8 … 18</td>
+<td>PB0, PB1 … PB7</td>
+</tr>
+<tr>
+<td>1, 3, 5 … 17</td>
+<td>GND</td>
+</tr>
+</tbody>
+</table></div>
+<p>No +5 V, no BRDY.</p>
+<h3>6.5 J8 — Timer (1×4)</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Pin</th>
+<th>Signal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>GND</td>
+</tr>
+<tr>
+<td>2</td>
+<td>CTC CLK/TRG1 (1 k pull-up)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>CTC CLK/TRG3 (1 k pull-up)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>CTC ZC/TO1</td>
+</tr>
+</tbody>
+</table></div>
+<p>This is <strong>not</strong> the same pinout as the Z80 SBC's J6 Timer header (TR0, TR1, GND, TO0).</p>
+<h3>6.6 J9 — Port C (2×8)</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Pins</th>
+<th>Signal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2, 4 … 16</td>
+<td>Q0 … Q7</td>
+</tr>
+<tr>
+<td>1, 3 … 15</td>
+<td>GND</td>
+</tr>
+</tbody>
+</table></div>
+<h3>6.7 J12 — DB9 female</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Pin</th>
+<th>Signal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2</td>
+<td>Data out (SIO TxDB, inverted, 0/5 V)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Data in (→ inverted → SW1 A)</td>
+</tr>
+<tr>
+<td>5, shell</td>
+<td>GND</td>
+</tr>
+<tr>
+<td>1, 4, 6–9</td>
+<td>n/c</td>
+</tr>
+</tbody>
+</table></div>
+<h3>6.8 Jumpers</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Ref</th>
+<th>Setting</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SW1</td>
+<td>B–C</td>
+<td>SIO RxD from USB</td>
+</tr>
+<tr>
+<td>SW1</td>
+<td>B–A</td>
+<td>SIO RxD from DB9</td>
+</tr>
+<tr>
+<td>JP2</td>
+<td>1–2</td>
+<td>Baud master = 24 MHz local</td>
+</tr>
+<tr>
+<td>JP2</td>
+<td>2–3</td>
+<td>Baud master = bus <code>4M</code></td>
+</tr>
+<tr>
+<td>JP1</td>
+<td>open or 1–2</td>
+<td>÷13</td>
+</tr>
+<tr>
+<td>JP1</td>
+<td>2–3</td>
+<td>÷12</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="s7">7. PLD (IC4, GAL16V8) — pin use</h2>
+<p>All 18 signal pins are used. There are no spares.</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Pin</th>
+<th>Signal</th>
+<th>Dir</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>IORQB</td>
+<td>in</td>
+<td></td>
+</tr>
+<tr>
+<td>2–9</td>
+<td>A0–A7</td>
+<td>in</td>
+<td><code>FIELD ADDR = [A7..A0]</code></td>
+</tr>
+<tr>
+<td>11</td>
+<td>RDB</td>
+<td>in</td>
+<td></td>
+</tr>
+<tr>
+<td>12</td>
+<td>WRB</td>
+<td>in (I/O pin used as input)</td>
+<td></td>
+</tr>
+<tr>
+<td>13</td>
+<td>SIOB</td>
+<td>out</td>
+<td>SIO /CE</td>
+</tr>
+<tr>
+<td>14</td>
+<td>PIOB</td>
+<td>out</td>
+<td>PIO /CE</td>
+</tr>
+<tr>
+<td>15</td>
+<td>CTCB</td>
+<td>out</td>
+<td>CTC /CE</td>
+</tr>
+<tr>
+<td>16</td>
+<td>IN5</td>
+<td>out</td>
+<td>J6-4</td>
+</tr>
+<tr>
+<td>17</td>
+<td>IN6</td>
+<td>out</td>
+<td>J6-2</td>
+</tr>
+<tr>
+<td>18</td>
+<td>OUT5</td>
+<td>out</td>
+<td>J6-3</td>
+</tr>
+<tr>
+<td>19</td>
+<td>PORTCOUT</td>
+<td>out</td>
+<td>74HC574 CP (net <code>PORTC</code>)</td>
+</tr>
+</tbody>
+</table></div>
+<p>Equations (WinCUPL, <code>Device g16v8a</code>; the <code>.jed</code> is simple mode, <code>g16v8as</code>):</p>
+<pre tabindex="0"><code>!PORTCOUT = ADDR:7       &amp; !IORQB &amp; !WRB ;   /* OUT 07h          */
+!CTCB     = ADDR:[8..B]  &amp; !IORQB ;          /* CTC  08-0B       */
+!PIOB     = ADDR:[10..13]&amp; !IORQB ;          /* PIO  10-13       */
+!SIOB     = ADDR:[C..F]  &amp; !IORQB ;          /* SIO  0C-0F       */
+!IN5      = ADDR:5       &amp; !IORQB &amp; !RDB ;   /* IN  05h          */
+!IN6      = ADDR:6       &amp; !IORQB &amp; !RDB ;   /* IN  06h          */
+!OUT5     = ADDR:5       &amp; !IORQB &amp; !WRB ;   /* OUT 05h          */
+</code></pre>
+<ul>
+<li>The fuse map (<code>.jed</code>, built 2023-07-04) was decoded term by term: one product term per output, all seven match the source, all outputs active low (XOR bits 0), simple mode (SYN = 1, AC0 = 0), signature &quot;00&quot;. The <code>.PLD</code> file was saved later (2023-07-26) with the same logic.</li>
+<li>Peripheral selects aren't gated by <code>/RD</code>, <code>/WR</code> or <code>/M1</code>. The Zilog parts use <code>/RD</code> and <code>/M1</code> themselves, so that's correct.</li>
+<li><code>MREQB</code> isn't needed (I/O only).</li>
+</ul>
+<hr />
+<h2 id="s8">8. Timing notes</h2>
+<ul>
+<li><strong>Decode delay:</strong> GAL16V8 propagation (speed grade not recorded, typically 10–25 ns) between <code>/IORQ</code>/address and the selects. Z80 I/O cycles insert an automatic wait state, so this is comfortable at 4 MHz.</li>
+<li><strong>Port C latch:</strong> the clock edge is the end of <code>/WR</code> (or <code>/IORQ</code>) plus the PLD delay. The Z80 holds data for a while after <code>/WR</code> rises, which comfortably covers the HC574's few-ns hold time plus the PLD delay.</li>
+<li><strong>Interrupt acknowledge:</strong> CTC/PIO/SIO selects can coincide with an INTA cycle if the PC low byte matches. All three recognise <code>/M1</code> + <code>/IORQ</code> as INTA and ignore <code>/CE</code>. Benign, same as the Z80 SBC.</li>
+<li><strong>74LS193 at 24 MHz:</strong> the LS193's guaranteed minimum maximum count rate is 25 MHz, so 24 MHz is just inside. The <code>/BO</code> → <code>/LOAD</code> reload is asynchronous and must complete inside a 21 ns half-period. It works on the built board, but the margin is thin (section 9, item 5).</li>
+<li><strong>CTC counter input:</strong> 1.846 MHz against a 2 MHz limit at a 4 MHz bus clock (section 4.4).</li>
+<li><strong>SIO clock at N = 1:</strong> <code>ZC/TO2</code> pulses are about one CPU clock wide. At 115 200 baud with a 4 MHz bus clock, check the SIO's minimum RxTxC high/low times against the CTC's output pulse. Lower rates have plenty of margin.</li>
+<li><strong>PS/2 timeout:</strong> a frame is latched about 100 µs after its last clock edge. Keyboards normally leave much longer gaps between bytes of multi-byte codes (<code>E0</code>, <code>F0</code> sequences). The CPU then has until the next byte's latch, typically a millisecond or more, to read port A.</li>
+</ul>
+<hr />
+<h2 id="s9">9. Observations for the next revision</h2>
+<p>Most important first.</p>
+<ol>
+<li><strong>DB9 is logic level only.</strong> There's no RS-232 transceiver. It works with the designer's HP Deskpro Mini serial port, but only outside spec, on both sides:
+<ul>
+<li><strong>Pin 3 in:</strong> a real RS-232 driver (±5 to ±12 V) exceeds the 74LVC2G14's input rating (−0.5 V to 6.5 V). The negative swing is clamped by the input diode, limited only by the PC driver's current limit. The positive swing has no clamp at all, because LVC inputs are over-voltage tolerant with no diode to V<sub>CC</sub>. Modern PCs often use low-voltage transceivers (about ±5.5 V), which may be why it survives, but it's stressing the part.</li>
+<li><strong>Pin 2 out:</strong> 0/5 V instead of ±5 V or more. Most PC receivers switch at about 1.3 V, so it works.</li>
+<li>Fix: a MAX3232-class transceiver. Minimum: about 10 k in series with pin 3 plus a Schottky clamp to +5 V, and a &quot;TTL-level&quot; label.</li>
+</ul>
+</li>
+<li><strong>Floating inputs:</strong> SIO RxDB when SW1 has no link, PIO <code>/BSTB</code> (J7 pin 2), PS/2 CLK/DATA when no keyboard is plugged in (noise on CLK can latch garbage scan codes and raise interrupts), CTC TRG0 if nothing pulls <code>VDPINTB</code> up, and the 74LS193's A input with JP1 open. Add pull-ups (about 10 k) and supply JP1 bridged 1–2.</li>
+<li><strong>PS/2 pull-ups.</strong> The PS/2 interface expects pull-ups on CLK and DATA. It works with the current keyboard, but adding about 4k7 to +5 V on each would make it work with keyboards that rely on the host's pull-ups.</li>
+<li><strong>Baud generator depends on the bus CLK.</strong> The CTC can only count the 1.846 MHz baud master if the bus <code>CLK</code> is above about 3.7 MHz. With a slower CPU clock (for example on the 6502 SBC) the serial port won't work at all. A 1.8432 MHz oscillator driving <code>RxTxCB</code> directly, or driving CTC ch2 with a slower master, would remove the dependency.</li>
+<li><strong>Simplify the baud master.</strong> The '193's division depends on its logic family (hence JP1), and the LS part runs close to its limit at 24 MHz. A 1.8432 MHz oscillator gives exact standard rates and removes XT1 (24 MHz), the 74LS193, JP1 and JP2. It also makes the ROM's CTC time constant independent of which counter is fitted.</li>
+<li><strong>Almost no decoupling.</strong> Five 1 µF caps for eleven ICs plus a 24 MHz oscillator. Add 100 nF at each IC, especially at XT1 and the 74LS193.</li>
+<li><strong>SIO channel A wasted.</strong> Channel A could provide a second serial port (or the TTL DB9 could move to channel A, leaving channel B for USB) instead of a jumper choosing one receive source. Bringing out RTS/CTS would allow hardware flow control at 115 200 baud.</li>
+<li><strong>Unbuffered data bus on a cable.</strong> J6 carries D0–D7 to the MTX keyboard with no buffer. A long cable adds load and noise to the CPU's data bus. A 74HCT245 enabled by the IN5/IN6/OUT5 strobes would isolate it. The silkscreen and schematic name &quot;MTX/LCD&quot; can become &quot;MTX KBD&quot;, since the LCD use was dropped.</li>
+<li><strong>Port C has no reset.</strong> Its outputs are random at power-up. Drive <code>/OE</code> from a reset-cleared flag, or use a latch with a clear input (for example 74HC273 with <code>RSTB</code>).</li>
+<li><strong>Timer header pinout differs from the Z80 SBC's.</strong> Use one pinout for both boards.</li>
+<li><strong>Head-of-chain is fixed.</strong> CTC IEI is hard-wired high. A jumper to take IEI from the bus instead would let another board sit above it.</li>
+<li><strong>Two FTDI devices on one PC.</strong> <code>uploadROM.py</code> picks the programmer by &quot;Z80&quot; in the FTDI serial number. Make sure this board's FT232 serial number doesn't contain &quot;Z80&quot;, or the script will find two ports and abort.</li>
+<li><strong>Housekeeping:</strong> the folder holds <code>PHONO-SRC-00A-erc.rpt</code> (name left over from another project) and an extension-less file <code>V102-IO1-0</code> (an old 2023 BoM CSV). The 24 MHz value is recorded, but the GAL16V8 speed grade isn't. The PLD source's <code>Company</code> field is <code>xxx</code>.</li>
+</ol>
+<hr />
+<h2 id="s10">10. Open questions</h2>
+<ul>
+<li>MTX keyboard (10 × 8): which drive/sense bits map to IN5/IN6/OUT5, and whether it buffers D0–D7 on its side.</li>
+<li>The CTC time constant in the current ROM (12 for ÷13, 13 for ÷12) and the actual division measured on IC2 pin 21.</li>
+<li>Who drives the bus <code>4M</code> line (JP2 option 2–3).</li>
+<li>Is <code>VDPINTB</code> pulled up on the VDP board?</li>
+<li>How the 6502 SBC works with this board's Zilog peripherals: they need Z80 <code>/M1</code> timing, and the daisy chain relies on the CPU fetching <code>RETI</code> (<code>ED 4D</code>) to clear each device's interrupt-under-service flag. A 6502 never does, so after the first interrupt lower-priority devices would stay blocked unless the 6502 board's PLD emulates it.</li>
+<li>Port addresses 0Ch–13h versus the MTX512's own map (confirm with the MTX board).</li>
+</ul>
+</article></div></section>
+</main>
+<footer><div class="wrap"><div class="bars"></div><p>NOVAZ80, by NOVA Embedded Solutions. A hobby project, built just for fun. <a href="../index.html">The story</a> · <a href="../credits.html">Credits</a></p></div></footer>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/viewer.js" defer></script>
+<script src="../assets/js/swipe.js" defer></script>
+</body>
+</html>

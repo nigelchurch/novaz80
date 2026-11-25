@@ -1,0 +1,55 @@
+Name     z80-VDP-out0 ;
+PartNo   00 ;
+Date     12/1/2023 ;
+Revision 01 ;
+Designer Nigel ;
+Company  xxx ;
+Assembly None ;
+Location  ;
+Device   g16v8a ;
+
+/* *************** INPUT PINS ******************** */
+
+PIN 	1 	    = 	    IORQB 	    ; 
+PIN 	2 	    = 	    M1B 	    ; 
+PIN  	3   	=   	A0  	    ;  
+PIN  	4   	=   	A1 	        ;  
+PIN  	5   	=  	    A2   	    ;  
+PIN  	6   	=   	A3   	    ;  
+PIN  	7   	=   	A4   	    ;  
+PIN  	8   	=   	A5   	    ;  
+PIN  	9   	=   	A6  	    ;  
+PIN  	11   	=   	A7  	    ;  
+PIN  	18  	=   	RDB  	    ;  
+PIN  	19  	=   	WRB  	    ;  
+
+FIELD ADDR = [A7..A0]               ;
+
+/* *************** OUTPUT PINS ******************** */
+
+PIN  	17	    =  	OUT6  	; /* data write to sound chip pos edge trigger */ 
+PIN  	16   	=  	VDPRD   ; /* read from one of 2 vdp registers   */ 
+PIN  	15   	=  	VDPWR   ; /* write to one of 2 vdp registers    */ 
+PIN  	14   	=  	IN3  	; /* strobe the data from the latch to the sound chip */ 
+PIN     12      =   OUT0    ; /* chip select for mtx page latch on myx board */
+
+/* *************** LOGIC FORMULA ******************** */
+
+OUT6	    =	(ADDR:6 & !IORQB & !WRB) ; 			
+// out(06h)
+
+!IN3	    =	(ADDR:3 & !IORQB & !RDB) ; 			
+// in(03h)
+
+!VDPRD      =   (ADDR:2 & !IORQB & !RDB)      #      (ADDR:1 & !IORQB & !RDB) ;
+// in(02h or 01h) 
+
+!VDPWR      =   (ADDR:2 & !IORQB & !WRB)      #      (ADDR:1 & !IORQB & !WRB) ;
+// out(02h or 01h)
+
+OUT0        =   (ADDR:0 & !IORQB & !WRB) ;
+// out(0) is page latch on mtx board connected if required through spec connector
+ 
+
+
+

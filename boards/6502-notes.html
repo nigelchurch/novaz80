@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6502 SBC design notes · NOVAZ80</title>
+<meta name="description" content="Design analysis of the NOVAZ80 6502 SBC.">
+<meta name="theme-color" content="#0b0b0d">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" aria-label="Main"><div class="wrap"><a class="brand" href="../index.html">NOVAZ80</a>
+<ul><li><a href="../index.html#story">Story</a></li><li><a href="../design.html">Design</a></li><li><a href="../index.html#build">Build</a></li><li><a href="../index.html#bus">Bus</a></li><li><a href="../index.html#boards" aria-current="true">Boards</a></li></ul></div></nav>
+<main id="main">
+<section class="paper sec"><div class="wrap"><p><a class="more" href="6502.html">← 6502 SBC</a></p><article class="notes"><details class="toc"><summary>Contents</summary><ul><li><a href="#s0">0. Where this board sits in the NOVAZ80 project</a></li><li><a href="#s1">1. Summary</a></li><li><a href="#s2">2. Block diagram</a></li><li><a href="#s3">3. Parts (BoM)</a></li><li><a href="#s4">4. Subsystems</a></li><li><a href="#s5">5. Memory and I/O map (from the PLD)</a></li><li><a href="#s6">6. Connectors</a></li><li><a href="#s7">7. PLD (IC5, ATF20V8B) — pin use</a></li><li><a href="#s8">8. Timing notes</a></li><li><a href="#s9">9. Observations for the next revision</a></li><li><a href="#s10">10. Open questions</a></li></ul></details><h1>NOVAZ80 6502 SBC — V102-6502-2 (Rev 002)</h1>
+<p>Design analysis from <code>V102-6502-2.net</code> (KiCad/Eeschema 9.0.7 export, 2026-11-25), the schematic (root sheet + <code>v102-con-z80.kicad_sch</code> CONNECTORS sheet), the BoM and the PCB file (<code>V102-6502-2.kicad_pcb</code>). The netlist and the PCB's pad-to-net connectivity were compared net by net and are identical. ERC: 0 errors / 0 warnings. DRC: 0 violations, 0 unconnected pads, 0 footprint errors.</p>
+<p>Title block: <em>NOVAZ80 Project (6502 BRD) – V102-6502</em>, Nova Embedded Solutions, dated 2023-07-23, Rev 002.
+Revision notes:</p>
+<ol>
+<li>Added wired-OR diode to 65C22 INTB.</li>
+<li>Wired CA1 and CA2 to AUX1 and AUX2.</li>
+</ol>
+<p>PLD: <code>v102-6502-00.PLD</code> and <code>v102-6502-00.jed</code>. The fuse map was decoded and matches the source equations (section 7). <code>pld.pdf</code> in the board folder is a 2023-07-25 print of the same source.</p>
+<p>Clock frequency: X1 is <strong>4 MHz</strong> (confirmed by the designer; not recorded in the design files).</p>
+<hr />
+<h2 id="s0">0. Where this board sits in the NOVAZ80 project</h2>
+<p>The 6502 single-board computer: the CPU board for the &quot;6502 SBC&quot; configuration. On its own it is a complete minimal computer (W65C02S, 32 K RAM, 32 K ROM, W65C22 VIA). Its job in the project is to <strong>drive the Z80-style NOVAZ80 bus from a 6502</strong>, so the same I/O and VDP/sound boards work with either CPU.</p>
+<p>The 6502 is memory-mapped and the NOVAZ80 peripherals are I/O-mapped. The board bridges the two by opening a <strong>256-byte I/O window at <code>7F00–7FEF</code></strong>: an access there asserts bus <code>IORQB</code>, and the peripheral boards see the low address byte as a Z80 port number (section 5). The CPU runs at <strong>1 MHz</strong> (4 MHz ÷ 4), while the undivided 4 MHz goes out as bus <code>CLK</code>, because the Zilog peripherals (and the I/O board's baud generator) need a fast bus clock (designer: this is the reason for the clock division).</p>
+<p>This board is the <strong>+5 V source for the stack</strong> (DC-DC module onto SPEC pin 2). The programmer card (V102-PR1-2) burns its ROM in circuit.</p>
+<p>Status: built and tested. VIA writes and Z80 PIO writes are known to work; there were problems with the Z80 CTC (section 4.10). Section 9 collects observations for the planned 4-layer revision.</p>
+<hr />
+<h2 id="s1">1. Summary</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU</td>
+<td>WDC W65C02S6TPG-14 (CMOS 65C02, 14 MHz grade), DIP-40, run at <strong>1 MHz</strong></td>
+</tr>
+<tr>
+<td>ROM</td>
+<td>AT28C256-15 EEPROM, 32 K × 8, at <code>8000–FFFF</code></td>
+</tr>
+<tr>
+<td>RAM</td>
+<td>HM62256BLP-10 SRAM, 32 K × 8, at <code>0000–7EFF</code> (see 4.3 for <code>7FF0–7FFF</code>)</td>
+</tr>
+<tr>
+<td>I/O</td>
+<td>W65C22S VIA at <code>7FF0–7FFF</code> (ports A/B + CA1/CA2 to J1)</td>
+</tr>
+<tr>
+<td>Bus I/O window</td>
+<td><code>7F00–7FEF</code> → bus <code>IORQB</code> (PHI2-qualified); Z80 port = A7–A0</td>
+</tr>
+<tr>
+<td>Glue</td>
+<td>ATF20V8B PLD (memory/I/O decode), 74HC74 (clock ÷4), 74LVC2G14 (RDB, RESX inversion)</td>
+</tr>
+<tr>
+<td>Reset</td>
+<td>MAX811L (4.63 V) + reset button + bus KBDRST, programmer RESX; diode-OR onto RSTB</td>
+</tr>
+<tr>
+<td>Clock</td>
+<td>4 MHz DIP-14 can → bus <code>CLK</code>; ÷4 → PHI2 = 1 MHz</td>
+</tr>
+<tr>
+<td>Interrupts</td>
+<td><code>INTB</code> → CPU <code>IRQB</code> (1 k pull-up); VIA joins through a Schottky diode. No <code>/M1</code>, no interrupt acknowledge</td>
+</tr>
+<tr>
+<td>Power</td>
+<td>DC jack (silkscreen &quot;7VDC to 15VDC&quot;) → DPDT push switch → buck module → +5 V</td>
+</tr>
+<tr>
+<td>PCB</td>
+<td>100 × 100 mm, 2-layer, +5 V pour on F.Cu, GND pour on B.Cu, 0.15 mm signal tracks (0.3 mm power)</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="s2">2. Block diagram</h2>
+<pre tabindex="0"><code> Barrel jack PL1 ─PWR─┬─────────────────────────────────► PROG pin 8 (raw input, unswitched)
+          sleeve GIN  │
+                      └─ SW2 (DPDT) ─VIN/G2─► PW1 DC-DC ─► +5V ─► SPEC pin 2 (feeds the stack)
+                                                           └─R3─► D2 power LED
+
+ X1 4 MHz ─CLK─┬──────────────────────────────────────► CTRL pin 2 (bus CLK, 4 MHz)
+               └─► IC8A ÷2 ─► IC8B ÷2 ─► PHI (1 MHz) ─► CPU PHI2, VIA PHI2, PLD pin 1
+                   (both flip-flops cleared by RSTB → PHI held high during reset)
+
+ SW1 RESET ─┐
+ SPEC KBDRST┴─► MAX811 /MR ─► RESB ─D19─┐
+ PROG RESX ─► IC6A inv ─────────────D20─┴─► RSTB (R7 1k up) ─► CPU, VIA, IC8 /R, CTRL pin 1
+
+ A0–A15, PHI, ROMCSX ─► PLD IC5 ─┬─► ROMCSB ─► 28C256 /CE   (/OE = ROMOEX, /WE = ROMWEX)
+                                 ├─► RAMCSB ─► 62256 /OE    (/CS = GND!, /WE = CPU R/W)
+                                 ├─► VIACSB ─► VIA CS2B     (CS1 = +5V, RS0–3 = A0–A3)
+                                 └─► IORQB  ─► CTRL pin 5   (7F00–7FEF while PHI2 high)
+
+ CPU R/W ─┬──────────────────────────► CTRL pin 7 WRB (level: low = write)
+          └─► IC6B inv ──────────────► CTRL pin 6 RDB (level: low = read)
+ +5V ────────────────────────────────► CTRL pin 3 M1B, pin 4 MREQB (permanently inactive)
+
+ ┌──────────┐  A0–A15, D0–D7 (4k7 pull-ups) ─► stack connectors (no buffers)
+ │ W65C02S  │  BE ◄── PROG BUSRQ (1k up).  IRQB ◄── INTB (1k up) ◄─D1─ VIA IRQB
+ └──────────┘  RDY, NMIB tied straight to +5V.  SOB, SYNC, VPB, MLB, PHI1O, PHI2O: n/c
+
+ VIA: PA0–7, PB0–7, CA1, CA2 ─► J1 (2×17);  CA1, CA2 also ─► AUX pins 1, 2.  CB1, CB2: n/c
+</code></pre>
+<hr />
+<h2 id="s3">3. Parts (BoM)</h2>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Ref</th>
+<th>Part</th>
+<th>Function</th>
+<th>Datasheet</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IC1</td>
+<td>W65C02S6TPG-14, DIP-40</td>
+<td>CPU</td>
+<td><a href="https://www.westerndesigncenter.com/wdc/documentation/w65c02s.pdf">W65C02S</a></td>
+</tr>
+<tr>
+<td>IC2</td>
+<td>AT28C256-15PU, DIP-28 (600 mil), BoM value &quot;32kB ROM&quot;</td>
+<td>32 K EEPROM, system ROM</td>
+<td><a href="https://ww1.microchip.com/downloads/en/DeviceDoc/doc0006.pdf">AT28C256</a></td>
+</tr>
+<tr>
+<td>IC3</td>
+<td>HM62256BLP-10, DIP-28, BoM value &quot;32kB RAM&quot;</td>
+<td>32 K SRAM</td>
+<td><a href="https://web.mit.edu/6.115/www/document/62256.pdf">HM62256</a></td>
+</tr>
+<tr>
+<td>IC4</td>
+<td>W65C22S6TPG-14, DIP-40, BoM value &quot;6522 VIA&quot;</td>
+<td>Versatile interface adapter</td>
+<td><a href="https://www.westerndesigncenter.com/wdc/documentation/w65c22.pdf">W65C22</a></td>
+</tr>
+<tr>
+<td>IC5</td>
+<td>ATF20V8B-10PU, DIP-24</td>
+<td>Memory / I/O decode PLD</td>
+<td><a href="https://pages.uoregon.edu/torrence/432/spec/ATF20V8.pdf">ATF20V8B</a></td>
+</tr>
+<tr>
+<td>IC6</td>
+<td>74LVC2G14 (BoM says 74HC2G14), SOT-23-6</td>
+<td>Dual Schmitt inverter: R/W → RDB, RESX → reset</td>
+<td><a href="https://www.ti.com/lit/ds/symlink/sn74lvc2g14.pdf">SN74LVC2G14</a></td>
+</tr>
+<tr>
+<td>IC7</td>
+<td>MAX811LEUS-T, SOT-143</td>
+<td>Reset supervisor, 4.63 V, manual-reset input</td>
+<td><a href="https://www.analog.com/media/en/technical-documentation/data-sheets/MAX811-MAX812.pdf">MAX811</a></td>
+</tr>
+<tr>
+<td>IC8</td>
+<td>74HC74, SO-14</td>
+<td>Clock divider ÷4 (PHI2)</td>
+<td><a href="https://www.ti.com/lit/ds/symlink/sn74hc74.pdf">SN74HC74</a></td>
+</tr>
+<tr>
+<td>X1</td>
+<td>4 MHz full-can DIP-14 oscillator (value field &quot;TFT680&quot;)</td>
+<td>Bus CLK and CPU clock source</td>
+<td><a href="http://cdn-reichelt.de/documents/datenblatt/B400/OSZI.pdf">Typical DIP-14 oscillator</a></td>
+</tr>
+<tr>
+<td>D1, D19, D20</td>
+<td>1N5819 Schottky (1206 footprint)</td>
+<td>VIA IRQ wired-OR; reset diode-OR</td>
+<td><a href="http://www.vishay.com/docs/88525/1n5817.pdf">1N5817–1N5819</a></td>
+</tr>
+<tr>
+<td>PW1</td>
+<td>Buck module, 4-pin (GND, Vout, Vin, GND), footprint <code>dc_dc_1</code></td>
+<td>+5 V for the board and the stack</td>
+<td>Generic module, no datasheet</td>
+</tr>
+<tr>
+<td>PL1</td>
+<td>Barrel jack with switch, Würth 6941xx301002</td>
+<td>Power input</td>
+<td><a href="https://www.we-online.com/components/products/datasheet/694106301002.pdf">Würth 694106301002</a></td>
+</tr>
+<tr>
+<td>SW2</td>
+<td>DPDT push switch, right-angle</td>
+<td>Power on/off</td>
+<td>—</td>
+</tr>
+<tr>
+<td>SW1</td>
+<td>Tactile switch, right-angle (PTS645)</td>
+<td>Reset</td>
+<td>—</td>
+</tr>
+<tr>
+<td>J1</td>
+<td>2×17 socket, horizontal, value &quot;VIA&quot;</td>
+<td>VIA port connector</td>
+<td>—</td>
+</tr>
+<tr>
+<td>JA1–JA4, JA11–JA44</td>
+<td>8-way &quot;11 mm&quot; stacking sockets (bottom side)</td>
+<td>Stack bus (section 6)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C2, C3, C4</td>
+<td>1 µF 1206</td>
+<td>+5 V bypass (the only bypass caps)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>D2 / R3</td>
+<td>LED / 470 R</td>
+<td>Power indicator</td>
+<td>—</td>
+</tr>
+<tr>
+<td>RN1, RN2</td>
+<td>4k7 × 4 arrays</td>
+<td>D0–D7 pull-ups</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R6, R7, R9, R12</td>
+<td>1 k</td>
+<td>Pull-ups: INTB, RSTB, ROMWEX, BUSRQ</td>
+<td>—</td>
+</tr>
+<tr>
+<td>R4, R14, R15</td>
+<td>1 k</td>
+<td>Pull-downs: ROMOEX, ROMCSX, RESX</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="s4">4. Subsystems</h2>
+<h3>4.1 CPU (IC1, W65C02S)</h3>
+<ul>
+<li>Address and data go straight to the memories, VIA and the stack. <strong>No bus buffers.</strong></li>
+<li><strong><code>BE</code> (bus enable) = bus <code>BUSRQ</code></strong> (PROG pin 3, 1 k pull-up R12). This is how the board honours the programmer (section 4.9).</li>
+<li><code>IRQB</code> = bus <code>INTB</code> (CTRL pin 8, 1 k pull-up R6).</li>
+<li><strong><code>RDY</code> and <code>NMIB</code> are tied straight to +5 V</strong> (no resistor). <code>RDY</code> is bidirectional on the W65C02S: the <code>WAI</code> instruction drives it low, which would short the output to +5 V. Software must not use <code>WAI</code> (section 9, item 4).</li>
+<li><code>SOB</code> is <strong>unconnected</strong>. A falling edge on it sets the V flag.</li>
+<li>Outputs <code>SYNC</code>, <code>VPB</code>, <code>MLB</code>, <code>PHI1O</code>, <code>PHI2O</code> are unused. Pin 35 is NC.</li>
+<li>D0–D7 have 4k7 pull-ups, so an undriven bus reads <code>FFh</code>.</li>
+</ul>
+<h3>4.2 ROM (IC2)</h3>
+<ul>
+<li>A0–A14 from the CPU. <code>/CE</code> = PLD <code>ROMCSB</code> (<code>8000–FFFF</code>, or programmer <code>ROMCSX</code>).</li>
+<li><code>/OE</code> = <code>ROMOEX</code> (PROG pin 7, 1 k pull-down → always enabled). <code>/WE</code> = <code>ROMWEX</code> (PROG pin 4, 1 k pull-up → the CPU can't write the EEPROM). Same arrangement as the Z80 SBC.</li>
+<li>With <code>/OE</code> always active and <code>/CE</code> not gated by R/W, the ROM drives the data bus during any <strong>write</strong> to <code>8000–FFFF</code>.</li>
+</ul>
+<h3>4.3 RAM (IC3) — unusual wiring</h3>
+<ul>
+<li>A0–A14 from the CPU.</li>
+<li><strong><code>/CS</code> is tied to GND.</strong> <strong><code>/OE</code> = PLD <code>RAMCSB</code></strong> (address decode only). <strong><code>/WE</code> = CPU R/W</strong> directly, not qualified by PHI2.</li>
+<li>Consequences:
+<ul>
+<li><strong>Every write cycle writes RAM</strong>, whatever the address. A write to <code>8000–FFFF</code> also writes RAM at the address minus <code>8000h</code>; a write to the I/O window or the VIA also writes RAM at the same <code>7Fxx</code> address.</li>
+<li><code>/WE</code> follows R/W, which changes at the start of φ1 together with the address. So the write is &quot;open&quot; while the address is changing and before the CPU drives write data (data only becomes valid after PHI2 rises). The correct byte is written by the end of the cycle, but the previous address can be disturbed at the start of a write, and the end of the write relies on R/W rising no later than the address changes. Both are races (section 8).</li>
+<li><strong>RAM <code>/OE</code> is also active at <code>7FF0–7FFF</code>.</strong> The PLD's RAM term only excludes the I/O window <code>7F00–7FEF</code>, not the VIA's range (the source comment and the silkscreen &quot;0000-7EFF&quot; say otherwise). On a <strong>VIA read the RAM and the VIA both drive D0–D7.</strong></li>
+<li>Because every VIA write also writes the RAM at the same address, reading back a register that holds what was last written (DDR, ORx, ACR, PCR) gives the same value from both chips, so it looks right. Reads where the VIA's value differs (input pins, IFR, timer counters, shift register) fight. This fits &quot;VIA writes were fine&quot;. <em>To confirm on the scope.</em></li>
+</ul>
+</li>
+<li>RAM is permanently selected, so it never drops to standby current.</li>
+</ul>
+<h3>4.4 Address decode and bus translation (IC5 PLD)</h3>
+<p>The PLD makes the memory map and the only Z80-style strobe the board generates. Section 7 has the equations.</p>
+<p>How the Z80-style CTRL group is produced:</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>CTRL pin</th>
+<th>Signal</th>
+<th>On this board</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>RSTB</td>
+<td>Diode-OR reset (4.7), driven</td>
+</tr>
+<tr>
+<td>2</td>
+<td>CLK</td>
+<td>X1 4 MHz, undivided, driven</td>
+</tr>
+<tr>
+<td>3</td>
+<td>M1B</td>
+<td><strong>Tied to +5 V</strong> (never active)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>MREQB</td>
+<td><strong>Tied to +5 V</strong> (never active)</td>
+</tr>
+<tr>
+<td>5</td>
+<td>IORQB</td>
+<td>PLD: low while the address is <code>7F00–7FEF</code> <strong>and PHI2 is high</strong></td>
+</tr>
+<tr>
+<td>6</td>
+<td>RDB</td>
+<td>CPU R/W inverted by IC6B (low for the whole of every read cycle)</td>
+</tr>
+<tr>
+<td>7</td>
+<td>WRB</td>
+<td>CPU R/W directly (low for the whole of every write cycle)</td>
+</tr>
+<tr>
+<td>8</td>
+<td>INTB</td>
+<td>CPU IRQB input, wired-OR, 1 k pull-up</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><code>RDB</code> and <code>WRB</code> are <strong>levels</strong>, not strobes. The timing edges come from <code>IORQB</code>, which only goes low during PHI2 high. Every peripheral board gates its selects with <code>IORQB</code>, so a bus access only happens inside the PHI2-high half of a <code>7F00–7FEF</code> cycle.</li>
+<li><code>MREQB</code> high means no other board can see a memory cycle. That is fine, because no peripheral board decodes memory.</li>
+<li><code>M1B</code> high means the Zilog peripherals never see an interrupt acknowledge or a <code>/M1</code>-only reset (4.10).</li>
+</ul>
+<h3>4.5 VIA (IC4, W65C22S)</h3>
+<ul>
+<li><code>CS1</code> = +5 V, <code>CS2B</code> = PLD <code>VIACSB</code> (<code>7FF0–7FFF</code>, masked by <code>ROMCSX</code>). <code>RS0–RS3</code> = A0–A3, so registers 0–F are at <code>7FF0–7FFF</code>.</li>
+<li><code>PHI2</code> = PHI, <code>R/WB</code> = CPU R/W, <code>RESB</code> = RSTB.</li>
+<li><code>IRQB</code> → D1 (1N5819, cathode at the VIA) → <code>INTB</code>. The W65C22<strong>S</strong> has a totem-pole IRQB output (the NMOS 6522 was open-drain), so the diode lets it share the wired-OR line with the open-drain Zilog parts (revision note 1).</li>
+<li>Ports and handshakes go to J1 (6.2). CA1 and CA2 also go to bus AUX pins 1 and 2 (revision note 2).</li>
+<li><code>CB1</code>, <code>CB2</code> are not connected.</li>
+</ul>
+<h3>4.6 Clock</h3>
+<ul>
+<li>X1 (4 MHz) → net <code>CLK</code> → bus CTRL pin 2 <strong>and</strong> IC8A clock.</li>
+<li>IC8A toggles (D = /Q) → 2 MHz on its Q → clocks IC8B, which also toggles. IC8B /Q = <strong><code>PHI</code> = 1 MHz, 50 % duty</strong>, to CPU PHI2, VIA PHI2 and PLD pin 1.</li>
+<li>PHI2 rises about two flip-flop delays after a CLK rising edge, so PHI2 and bus CLK are synchronous. Each PHI2-high half contains two CLK rising edges, which the Zilog peripherals use to sample <code>IORQB</code>.</li>
+<li>Both flip-flops have <code>/R</code> = RSTB and <code>/S</code> = +5 V. <strong>During reset Q = 0, so PHI is held high and the CPU clock stops</strong> (section 9, item 5).</li>
+<li>The bus <code>4M</code> line (SPEC pin 6) isn't connected on this board. In this configuration <code>4M</code> is only driven by the VDP board's own oscillator, which is not synchronised to this board's CLK.</li>
+<li>The I/O board's baud generator needs a bus CLK above about 3.7 MHz (I/O board document, section 4.4). At 4 MHz that's met, which is the point of the ÷4 arrangement.</li>
+</ul>
+<h3>4.7 Reset</h3>
+<ul>
+<li><strong>MAX811L (IC7):</strong> <code>/RESET</code> (net <code>RESB</code>) low for at least 140 ms after power-up and on brown-out. <code>/MR</code> = net <code>KBDRST</code> (SPEC pin 8) and SW1, internal pull-up only.</li>
+<li><strong>Diode-OR onto <code>RSTB</code>:</strong> R7 (1 k) pulls <code>RSTB</code> up. D19 (cathode at <code>RESB</code>) pulls it low when the MAX811 asserts reset. D20 (cathode at IC6A output) pulls it low when <code>RESX</code> (PROG pin 6, 1 k pull-down R15) is high.</li>
+<li>So <code>RSTB</code> is low when <code>RESB</code> is low <strong>or</strong> <code>RESX</code> is high, the same function as the Z80 SBC (PLD) and MTX board (NOR gates), done here with Schottky diodes. Low level ≈ 0.3–0.4 V (Schottky drop plus driver V<sub>OL</sub>), fine for HC/CMOS inputs.</li>
+<li><code>RSTB</code> drives the CPU <code>RESB</code>, VIA <code>RESB</code>, both 74HC74 <code>/R</code> pins and CTRL pin 1 (the stack reset: CTC/SIO on the I/O board, VDP).</li>
+</ul>
+<h3>4.8 Interrupts</h3>
+<ul>
+<li>One level-sensitive <code>IRQB</code> input fed by the wired-OR <code>INTB</code>: the VIA (through D1) and any open-drain Zilog device on other boards.</li>
+<li><code>VDPINTB</code> (SPEC pin 3) only passes through. VDP interrupts reach the CPU only through the I/O board's CTC channel 0, which has the acknowledge problem in 4.10. Without the I/O board, VDP status has to be polled.</li>
+<li><code>IEO1</code> and <code>IEO2</code> only pass through. Nothing on this board pulls <code>IEO1</code> up (the Z80 SBC does). The daisy chain has no effect here because there is never an interrupt acknowledge.</li>
+</ul>
+<h3>4.9 Programming support</h3>
+<ul>
+<li><code>BUSRQ</code> low → W65C02S <code>BE</code> low → the CPU <strong>three-states A0–A15, D0–D7 and R/W at once</strong>, mid-cycle. Unlike the Z80's <code>/BUSRQ</code> it doesn't stop the CPU: the 65C02 keeps executing (reading <code>FFh</code> from its own floating side), which doesn't matter because the programmer resets the target when it releases the bus. This answers the overview's question: <strong>the 6502 honours <code>BUSRQ</code> directly through <code>BE</code>, not through the PLD</strong>, and the release is immediate, so the programmer's fixed 200 ms wait is more than enough.</li>
+<li><code>ROMCSX</code> (PROG pin 5, 1 k pull-down R14) high → PLD forces <code>ROMCSB</code> low and masks <code>RAMCSB</code> and <code>VIACSB</code>.</li>
+<li><strong><code>IORQB</code> is not masked by <code>ROMCSX</code></strong> (the source comment says it is, the equation doesn't). The programmer drives image addresses <code>0000–7FFF</code>, and image <code>7F00–7FEF</code> (CPU <code>FF00–FFEF</code>, where 6502 vectors and handlers usually sit) is inside the I/O window. While it writes those bytes, <code>IORQB</code> pulses at the 1 MHz PHI2 rate, and <code>RDB</code>/<code>WRB</code> <strong>float</strong> (CPU R/W is three-stated and has no pull-up; IC6B's input floats with it). Peripheral boards can then see random I/O reads and writes at ports <code>00–EF</code>: VDP registers/VRAM, sound, port C latch, CTC/SIO/PIO, <code>OUT0</code>. The final <code>RESX</code> reset clears most, but not VRAM, the SN76489 or the port C latch. See section 9, item 3.</li>
+<li>RAM: <code>/WE</code> floats with R/W while <code>/CS</code> is grounded, so RAM contents are undefined after programming. RAM <code>/OE</code> is masked, so it doesn't fight the programmer's data.</li>
+<li>Image: the 28C256's address 0 is CPU <code>8000</code>, so code is assembled with <code>ORG $8000</code> as a full 32 K image (vectors at image offset <code>7FFA–7FFF</code>) and burnt from address 0, as the overview's toolchain section expects.</li>
+</ul>
+<h3>4.10 Working with the Zilog peripherals (I/O board)</h3>
+<p>The I/O board's PIO, CTC and SIO see a normal Z80 I/O cycle: <code>IORQB</code> low with <code>RDB</code> low (read) or high (write); the Zilog parts have no <code>/WR</code> pin and decide direction from <code>/RD</code>. <code>M1B</code> is always high. This explains what does and doesn't work:</p>
+<ul>
+<li><strong>Register writes and reads work</strong> in principle: <code>IORQB</code> is low for about 500 ns with two CLK rising edges inside it, comparable to a Z80 I/O cycle at 4 MHz. The designer reports PIO writes working.</li>
+<li><strong>No interrupt acknowledge.</strong> A Zilog device that raises <code>/INT</code> expects an INTA cycle (<code>/M1</code> + <code>/IORQ</code>) to take its vector and later a <code>RETI</code> (<code>ED 4D</code>) fetch to clear its interrupt-under-service flag. Neither ever happens here. The 6502 sees <code>IRQB</code> low, but the device's interrupt request is not cleared by the acknowledge it is waiting for. Unless software clears it through the device's own registers, <code>IRQB</code> stays low and the 6502 re-enters its IRQ handler endlessly. <strong>This is the most likely cause of the CTC problems.</strong> <em>To confirm:</em> which register operations drop each part's <code>/INT</code> without an acknowledge (UM0081; for the CTC, a channel reset or disabling the channel interrupt), and whether the IO board CTC's VDP interrupt (channel 0) can be used this way at all.</li>
+<li><strong>No <code>/M1</code> reset.</strong> The Z80 PIO has no reset pin and resets only on <code>/M1</code> without <code>/RD</code> or <code>/IORQ</code> (or at power-up). On this board pressing reset doesn't reset the PIO, so software must reprogram it fully after every reset. CTC and SIO have <code>/RESET</code> pins on <code>RSTB</code>, so they are reset normally.</li>
+<li><strong>Write-data timing</strong> relative to <code>IORQB</code> is tight (section 8). Zilog parts sample on CLK edges well inside the strobe, so they are less exposed than the latches on the other boards.</li>
+<li>If the CTC is used polled (no interrupts), its counters can still be read and its time-constant writes should work. The baud clock for the SIO needs only the 4 MHz bus CLK.</li>
+</ul>
+<h3>4.11 Power</h3>
+<ul>
+<li>PL1 centre pin = <code>PWR</code>, unswitched to PROG pin 8 (12 V on the bus, as on the Z80 SBC and MTX board).</li>
+<li>The jack's sleeve and switch contact (net <code>GIN</code>) are <strong>not board GND</strong>. SW2 pole 2 connects them to PW1 pin 4 (<code>G2</code>). Only PW1 pin 1 is board GND. Same arrangement as the MTX board: the supply return passes through SW2 and the module's internal ground link.</li>
+<li>SW2 pole 1 switches <code>PWR</code> → <code>VIN</code> (PW1 pin 3). PW1 pin 2 = +5 V.</li>
+<li>Silkscreen &quot;7VDC to 15VDC&quot; and &quot;+5VDC REGULATOR&quot; (it's a buck module).</li>
+<li>Bypass: three 1 µF caps for seven ICs plus the oscillator.</li>
+<li>Copper: +5 V pour on F.Cu, GND pour on B.Cu.</li>
+</ul>
+<hr />
+<h2 id="s5">5. Memory and I/O map (from the PLD)</h2>
+<h3>Memory (CPU address space)</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>CPU address</th>
+<th>Device</th>
+<th>Select</th>
+<th>Silkscreen</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0000–7EFF</code></td>
+<td>62256 RAM</td>
+<td><code>/OE</code> = RAMCSB</td>
+<td>&quot;32kB STATIC RAM - 0000-7EFF&quot;</td>
+</tr>
+<tr>
+<td><code>7F00–7FEF</code></td>
+<td><strong>Bus I/O window</strong> → <code>IORQB</code></td>
+<td>PHI2-qualified</td>
+<td>&quot;IORQB - 7F00-7FEF&quot;</td>
+</tr>
+<tr>
+<td><code>7FF0–7FFF</code></td>
+<td>W65C22 VIA, registers 0–F</td>
+<td><code>CS2B</code> = VIACSB</td>
+<td>&quot;6522 VIA - 7FF0-7FFF&quot;</td>
+</tr>
+<tr>
+<td><code>7FF0–7FFF</code></td>
+<td><strong>RAM <code>/OE</code> also active</strong> (contention on reads, 4.3)</td>
+<td>RAMCSB</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>8000–FFFF</code></td>
+<td>28C256 ROM (vectors at <code>FFFA–FFFF</code>)</td>
+<td><code>/CE</code> = ROMCSB</td>
+<td>&quot;32kB EEPROM - 8000-FFFF&quot;</td>
+</tr>
+</tbody>
+</table></div>
+<p>All writes anywhere also write RAM at <code>A14–A0</code> (4.3).</p>
+<h3>Bus I/O window — Z80 port <code>nn</code> is at CPU <code>7Fnn</code></h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>CPU address</th>
+<th>Z80 port</th>
+<th>Read</th>
+<th>Write</th>
+<th>Board</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>7F00</code></td>
+<td><code>00h</code></td>
+<td>—</td>
+<td><code>OUT0</code> pulse (MTX page latch; harmless here)</td>
+<td>VDP</td>
+</tr>
+<tr>
+<td><code>7F01</code> / <code>7F02</code></td>
+<td><code>01h</code> / <code>02h</code></td>
+<td>VRAM data / status</td>
+<td>VRAM data / register + address</td>
+<td>VDP</td>
+</tr>
+<tr>
+<td><code>7F03</code></td>
+<td><code>03h</code></td>
+<td>Sound strobe</td>
+<td>—</td>
+<td>VDP</td>
+</tr>
+<tr>
+<td><code>7F05</code></td>
+<td><code>05h</code></td>
+<td><code>IN5</code></td>
+<td><code>OUT5</code></td>
+<td>I/O (MTX keyboard)</td>
+</tr>
+<tr>
+<td><code>7F06</code></td>
+<td><code>06h</code></td>
+<td><code>IN6</code></td>
+<td>Sound data latch</td>
+<td>I/O / VDP</td>
+</tr>
+<tr>
+<td><code>7F07</code></td>
+<td><code>07h</code></td>
+<td>—</td>
+<td>Port C latch</td>
+<td>I/O</td>
+</tr>
+<tr>
+<td><code>7F08–7F0B</code></td>
+<td><code>08h–0Bh</code></td>
+<td>CTC ch 0–3</td>
+<td>same</td>
+<td>I/O</td>
+</tr>
+<tr>
+<td><code>7F0C–7F0F</code></td>
+<td><code>0Ch–0Fh</code></td>
+<td>SIO A/B data, A/B control</td>
+<td>same</td>
+<td>I/O</td>
+</tr>
+<tr>
+<td><code>7F10–7F13</code></td>
+<td><code>10h–13h</code></td>
+<td>PIO A/B data, A/B control</td>
+<td>same</td>
+<td>I/O</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li>Ports <code>F0h–FFh</code> can't be reached (the window stops at <code>7FEF</code>). None are used so far.</li>
+<li>The Z80 SBC's own CTC (<code>18h</code>) and PIO (<code>20h</code>) are on that board, so they aren't present in a 6502 machine.</li>
+<li><strong>Dummy reads.</strong> The VDP data/status ports, the SIO data registers and the sound strobe (<code>7F03</code>) have side effects on read. 65C02 indexed and read-modify-write addressing modes can add extra bus cycles; use plain absolute addressing (<code>LDA $7F01</code>, <code>STA $7F01</code>) for these ports and check the W65C02S cycle tables before using indexed modes on the window.</li>
+</ul>
+<hr />
+<h2 id="s6">6. Connectors</h2>
+<h3>6.1 Stack bus</h3>
+<p>One footprint per group, bottom side, same corner layout and references as the Z80 SBC. Every group passes through.</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Corner</th>
+<th>Connectors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Top-left</td>
+<td>JA1 ADDR, JA11 ADDR2</td>
+</tr>
+<tr>
+<td>Top-right</td>
+<td>JA2 SPEC, JA22 PROG</td>
+</tr>
+<tr>
+<td>Bottom-left</td>
+<td>JA4 DATA, JA44 AUX</td>
+</tr>
+<tr>
+<td>Bottom-right</td>
+<td>JA3 CTRL, JA33 MTX</td>
+</tr>
+</tbody>
+</table></div>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Conn</th>
+<th>Name</th>
+<th>Pins 1→8</th>
+<th>Use on this board</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>JA1</td>
+<td>ADDR</td>
+<td>A0 … A7</td>
+<td>CPU drives</td>
+</tr>
+<tr>
+<td>JA11</td>
+<td>ADDR2</td>
+<td><strong>A15</strong> A14 … A9 <strong>A8</strong> (reversed)</td>
+<td>CPU drives</td>
+</tr>
+<tr>
+<td>JA4</td>
+<td>DATA</td>
+<td>D0 … D7</td>
+<td>CPU, memories, VIA; 4k7 pull-ups</td>
+</tr>
+<tr>
+<td>JA3</td>
+<td>CTRL</td>
+<td>RSTB, CLK, M1B, MREQB, IORQB, RDB, WRB, INTB</td>
+<td>RSTB driven (diode-OR). CLK = X1 4 MHz. <strong>M1B, MREQB tied to +5 V.</strong> IORQB from PLD. RDB = R/W inverted. WRB = R/W. INTB → CPU IRQB, 1 k pull-up</td>
+</tr>
+<tr>
+<td>JA2</td>
+<td>SPEC</td>
+<td>GND, +5V, VDPINTB, IEO1, IEO2, 4M, OUT0, KBDRST</td>
+<td>+5 V <strong>source</strong>. KBDRST → MAX811 /MR (and SW1). VDPINTB, IEO1, IEO2, 4M, OUT0 pass-through</td>
+</tr>
+<tr>
+<td>JA22</td>
+<td>PROG</td>
+<td>SP3, ROM7, BUSRQ, ROMWEX, ROMCSX, RESX, ROMOEX, PWR</td>
+<td>1, 2: n/c. 3: CPU <code>BE</code> (1 k up). 4: ROM /WE (1 k up). 5: PLD (1 k down). 6: IC6A → reset (1 k down). 7: ROM /OE (1 k down). 8: raw jack input</td>
+</tr>
+<tr>
+<td>JA33</td>
+<td>MTX</td>
+<td>P0 P1 P2 P3 R0 R1 R2 CPM</td>
+<td>Pass-through</td>
+</tr>
+<tr>
+<td>JA44</td>
+<td>AUX</td>
+<td>AUX1 … AUX8</td>
+<td><strong>1 = VIA CA1, 2 = VIA CA2.</strong> 3–8 pass-through (programmer SPI on 3–5)</td>
+</tr>
+</tbody>
+</table></div>
+<p>Programmer line meanings on this board:</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Line</th>
+<th>Goes to</th>
+<th>Idle state (pull)</th>
+<th>Active</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ROMCSX</code></td>
+<td>PLD</td>
+<td>low (pull-down)</td>
+<td><strong>high</strong></td>
+<td>Forces ROM <code>/CE</code> low; masks RAM and VIA (not IORQB)</td>
+</tr>
+<tr>
+<td><code>ROMOEX</code></td>
+<td>ROM <code>/OE</code> directly</td>
+<td>low (pull-down) = enabled</td>
+<td><strong>low</strong></td>
+<td>Read the ROM</td>
+</tr>
+<tr>
+<td><code>ROMWEX</code></td>
+<td>ROM <code>/WE</code> directly</td>
+<td>high (pull-up)</td>
+<td><strong>low</strong></td>
+<td>Write the ROM</td>
+</tr>
+<tr>
+<td><code>RESX</code></td>
+<td>IC6A → D20 → RSTB</td>
+<td>low (pull-down)</td>
+<td><strong>high</strong></td>
+<td>Resets the system</td>
+</tr>
+<tr>
+<td><code>BUSRQ</code></td>
+<td>CPU <code>BE</code></td>
+<td>high (pull-up)</td>
+<td><strong>low</strong></td>
+<td>CPU three-states address, data, R/W</td>
+</tr>
+</tbody>
+</table></div>
+<h3>6.2 J1 — VIA (2×17 horizontal socket)</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Pins</th>
+<th>Signal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2, 4, 6, 8, 10, 12, 14, 16</td>
+<td>PB7, PB6, PB5, PB4, PB3, PB2, PB1, PB0</td>
+</tr>
+<tr>
+<td>18, 20, 22, 24, 26, 28, 30, 32</td>
+<td>PA7, PA6, PA5, PA4, PA3, PA2, PA1, PA0</td>
+</tr>
+<tr>
+<td>33</td>
+<td>CA1 (also AUX1)</td>
+</tr>
+<tr>
+<td>34</td>
+<td>CA2 (also AUX2)</td>
+</tr>
+<tr>
+<td>1, 3, 5 … 31</td>
+<td>GND</td>
+</tr>
+</tbody>
+</table></div>
+<p>Same signal/ground-pair layout as the Z80 SBC's PIO connector J1, but 2×17 instead of 2×18 and with CA1/CA2 instead of the PIO strobes. <strong>No +5 V on J1.</strong></p>
+<h3>6.3 Other</h3>
+<ul>
+<li><strong>PL1:</strong> power input. <strong>SW2:</strong> power. <strong>SW1:</strong> reset.</li>
+<li>No jumpers on this board (no clock-source option like the Z80 SBC's JJP1).</li>
+</ul>
+<hr />
+<h2 id="s7">7. PLD (IC5, ATF20V8B) — pin use</h2>
+<p>All 22 signal pins are used; there is no spare.</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Pin</th>
+<th>Signal</th>
+<th>Dir</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>CLK (net <code>PHI</code>)</td>
+<td>in</td>
+<td>PHI2, not the bus CLK</td>
+</tr>
+<tr>
+<td>2–11</td>
+<td>A0–A9</td>
+<td>in</td>
+<td></td>
+</tr>
+<tr>
+<td>13</td>
+<td>A15</td>
+<td>in</td>
+<td></td>
+</tr>
+<tr>
+<td>14</td>
+<td>A14</td>
+<td>in</td>
+<td></td>
+</tr>
+<tr>
+<td>15</td>
+<td>ROMCSX</td>
+<td>in (I/O pin used as input)</td>
+<td>Programmer, active high, 1 k pull-down</td>
+</tr>
+<tr>
+<td>16</td>
+<td>VIACSB</td>
+<td>out</td>
+<td>VIA CS2B</td>
+</tr>
+<tr>
+<td>17</td>
+<td>IORQB</td>
+<td>out</td>
+<td>Bus CTRL pin 5</td>
+</tr>
+<tr>
+<td>18</td>
+<td>ROMCSB</td>
+<td>out</td>
+<td>ROM /CE</td>
+</tr>
+<tr>
+<td>19</td>
+<td>RAMCSB</td>
+<td>out</td>
+<td>RAM <strong>/OE</strong></td>
+</tr>
+<tr>
+<td>20–22</td>
+<td>A13, A12, A11</td>
+<td>in (I/O pins used as inputs)</td>
+<td></td>
+</tr>
+<tr>
+<td>23</td>
+<td>A10</td>
+<td>in</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p>Equations (WinCUPL, <code>Device g20v8a</code>; the <code>.jed</code> is simple mode, <code>g20v8as</code>):</p>
+<pre tabindex="0"><code>IO       = ADDR:[7F00..7FEF] ;
+!RAMCSB  = ADDR:[0000..7FFF] &amp; !IO &amp; !ROMCSX ;   /* 0000-7EFF and 7FF0-7FFF (!) */
+!IORQB   = IO &amp; CLK ;                             /* 7F00-7FEF while PHI2 high  */
+!VIACSB  = ADDR:[7FF0..7FFF] &amp; !ROMCSX ;          /* 7FF0-7FFF                  */
+!ROMCSB  = ADDR:[8000..FFFF] # ROMCSX ;           /* 8000-FFFF or programmer    */
+</code></pre>
+<ul>
+<li>The fuse map (<code>.jed</code>, built 2023-08-14, name <code>v102-6502-00</code>, rev 001) was decoded term by term and matches the source: RAMCSB 8 terms (all eight product terms of its OLMC are used), IORQB 4, VIACSB 1, ROMCSB 2. All outputs active low (XOR bits 0). AC1 sets pins 15, 20, 21 and 22 as inputs. Simple mode (SYN = 1, AC0 = 0).</li>
+<li>The <code>.PLD</code> file was saved later (2025-04-14) with the same logic; its <code>Date</code> field still says 14/7/23.</li>
+<li>Source comments that don't match the logic:
+<ul>
+<li>RAMCSB: &quot;0000-7eff … with iorq and via not active&quot;. The equation only excludes the I/O window, so RAM <code>/OE</code> is also active at <code>7FF0–7FFF</code>.</li>
+<li>IORQB: &quot;and external romcsx not active&quot;. The equation has no <code>ROMCSX</code> term.</li>
+<li><code>Device</code> line: &quot;test this with g22v10 cos g20v8a doesnt work with protius&quot;.</li>
+</ul>
+</li>
+<li>RAMCSB uses all 8 product terms, so adding <code>!VIA</code> to it in this device means rewriting the RAM decode (e.g. <code>!A15 &amp; !(A14..A8 all 1)</code> plus a term for <code>7F00–7FEF</code>'s complement) rather than adding a term. <em>Check the term count before editing.</em></li>
+</ul>
+<hr />
+<h2 id="s8">8. Timing notes</h2>
+<p>PHI2 = 1 MHz: cycle 1000 ns, φ1 (low) 500 ns, φ2 (high) 500 ns. W65C02S figures below are approximate 5 V values from the WDC datasheet: address and R/W valid ≤ ~30 ns after PHI2 falls (t<sub>ADS</sub>), held ≥ ~10 ns (t<sub>AH</sub>); write data valid ≤ ~25–30 ns after PHI2 rises (t<sub>MDS</sub>), held ≥ ~10 ns after PHI2 falls (t<sub>DHW</sub>). <em>Check against the current datasheet.</em></p>
+<ul>
+<li><strong>Memory reads:</strong> roughly 900 ns from address valid to data needed, minus the PLD (10 ns). A 150 ns 28C256 and a 100 ns 62256 have huge margin. The memory could run the CPU much faster; the 1 MHz limit comes from keeping the bus CLK at 4 MHz.</li>
+<li><strong>RAM writes</strong> (<code>/WE</code> = R/W, <code>/CS</code> grounded): at the start of a write cycle R/W falls while the address is still changing from the previous cycle, and the RAM writes whatever is on the bus (pull-ups or stale data) until the CPU drives data in φ2. At the end, R/W and the address change after the same ~10 ns hold. Both edges are races that the built board wins, but there's no designed margin. Standard fix: <code>/WE</code> low only while PHI2 is high and R/W is low.</li>
+<li><strong><code>IORQB</code> start vs write data:</strong> <code>IORQB</code> falls about 10 ns (PLD) after PHI2 rises; write data is valid ~25–30 ns after PHI2 rises. Boards that clock a latch on the <strong>leading</strong> edge see stale data. This is the VDP board's sound latch (<code>OUT6</code> rises at <code>IORQB</code> falling + its GAL delay, about 25–35 ns after PHI2 rises): a race. (Answers the VDP document's question about <code>WRB</code> timing: <code>WRB</code> is low for the whole cycle, so the edge comes from <code>IORQB</code>.)</li>
+<li><strong><code>IORQB</code> end vs data hold:</strong> <code>IORQB</code> rises about 10 ns after PHI2 falls. Latches clocked by the <strong>trailing</strong> edge (I/O board port C, the TMS99xx <code>/CSW</code>, the MTX page register) clock another 15–25 ns later through their own GAL, i.e. 25–35 ns after PHI2 falls, but write data is only guaranteed for ~10 ns. It works because the data bus holds its level on capacitance (the 4k7 pull-ups take a few hundred ns to pull it high), not by design.</li>
+<li><strong>Zilog peripherals:</strong> <code>IORQB</code> low for ~500 ns contains two CLK rising edges, the first ~210 ns after <code>IORQB</code> falls (well after write data is valid). That should satisfy the Z84C20/C30/C40 sampling, comparable to a Z80 I/O cycle at 4 MHz.</li>
+<li><strong>VDP access spacing:</strong> 65C02 accesses to the window are at least 4 µs apart for back-to-back absolute stores (<code>STA abs</code> = 4 cycles), which meets the TMS99xxA's worst-case VRAM access spacing in most modes. <em>Check the mode-specific figure in the data manual for tight loops.</em></li>
+<li><strong>Reset:</strong> the CPU clock is stopped high while <code>RSTB</code> is low (section 9, item 5).</li>
+</ul>
+<hr />
+<h2 id="s9">9. Observations for the next revision</h2>
+<p>Most important first.</p>
+<ol>
+<li><strong>RAM and VIA contend on VIA reads.</strong> RAM <code>/OE</code> is active at <code>7FF0–7FFF</code> (4.3, 7). Fix: exclude the VIA range from RAMCSB (matching the silkscreen's <code>0000–7EFF</code>).</li>
+<li><strong>RAM wiring.</strong> <code>/CS</code> grounded, <code>/OE</code> from the address decode, <code>/WE</code> = raw R/W:
+<ul>
+<li>every write, at any address, also writes RAM (writes to ROM space corrupt RAM at address − <code>8000h</code>);</li>
+<li><code>/WE</code> isn't qualified by PHI2, so writes are open during address changes (section 8);</li>
+<li>the RAM never goes to standby.</li>
+<li>Fix: RAM <code>/CS</code> = address decode, <code>/OE</code> = R/W-high (e.g. <code>RDB</code>), <code>/WE</code> = low only for PHI2 high and R/W low. This needs a gate or a PLD pin; the PLD has none spare (item 9).</li>
+</ul>
+</li>
+<li><strong><code>IORQB</code> not masked during programming.</strong> Add <code>!ROMCSX</code> to the IORQB term (as the source comment intends). Also pull <code>WRB</code>/R/W up (about 10 k) so <code>RDB</code>/<code>WRB</code> don't float while <code>BE</code> is low. Without this, burning ROM bytes at image <code>7F00–7FEF</code> (CPU <code>FF00–FFEF</code>) generates random I/O cycles on every peripheral board.</li>
+<li><strong><code>RDY</code> tied hard to +5 V.</strong> <code>WAI</code> drives <code>RDY</code> low on the W65C02S and would fight the rail. WDC recommends a pull-up resistor (a few k). Also put <code>NMIB</code> on a resistor so it can be used, and tie <code>SOB</code> high.</li>
+<li><strong>CPU clock stopped during reset.</strong> The 74HC74s are cleared by <code>RSTB</code>, so PHI2 sits high while reset is held, and starts in the same instant <code>RESB</code> is released. The W65C02S datasheet asks for <code>RESB</code> low for at least two clock cycles. It works on the built board, but keep the divider running during reset (tie its <code>/R</code> pins high, or clear it only at power-up).</li>
+<li><strong>No interrupt acknowledge for Zilog parts</strong> (4.10). Options for the next revision:
+<ul>
+<li>use the VIA for interrupts that need clearing in software, and wire <code>VDPINTB</code> to VIA <code>CA1</code> (a jumper would do; CA1 is already on J1-33 and AUX1), so VDP frame interrupts reach the 6502 without the CTC;</li>
+<li>or have the PLD generate a synthetic INTA (<code>M1B</code> + <code>IORQB</code>) on a read of a spare window address, and a <code>RETI</code>-equivalent, if vectored Zilog interrupts are wanted. <em>Needs design work.</em></li>
+</ul>
+</li>
+<li><strong>I/O strobe timing.</strong> Qualify <code>IORQB</code> with a later, narrower sub-phase of PHI2 so it starts after write data is valid and ends before PHI2 falls. The ×4 clock makes this easy: IC8A's Q and <code>CLK</code> give four 250 ns phases per CPU cycle (e.g. strobe only in the third quarter, 250–375 ns into PHI2 high). This fixes both the sound latch and the trailing-edge latches (section 8).</li>
+<li><strong><code>M1B</code>/<code>MREQB</code> tied hard to +5 V on the bus.</strong> No resistor, so if anything else ever drives those lines (a second CPU board fitted by mistake, or the programmer in a later revision) it fights the rail. Use about 10 k pull-ups instead. A PLD-generated <code>M1B</code> would also let the Z80 PIO be reset (item 6).</li>
+<li><strong>PLD full.</strong> All 22 pins of the ATF20V8B are used, and RAMCSB uses all 8 terms. Items 1–3 and 7 need R/W and a clock sub-phase as PLD inputs, so either an ATF22V10 (the source already mentions trying g22v10) or a narrower I/O decode (e.g. dropping A8/A9 from the window) would be needed.</li>
+<li><strong>ROM drives the bus on writes to <code>8000–FFFF</code></strong> (<code>/OE</code> always on, <code>/CE</code> not gated by R/W). Same project-wide issue as the Z80 SBC and MTX board. With item 2's RAM fix, gating ROM <code>/CE</code> or <code>/OE</code> with R/W removes it.</li>
+<li><strong>Floating inputs:</strong> VIA <code>CB1</code>/<code>CB2</code> unconnected, and PA/PB/CA1/CA2 float when J1 and AUX are empty. <em>Check whether the W65C22S has bus-hold or pull-ups on these pins</em>; if not, tie them off.</li>
+<li><strong>Almost no decoupling.</strong> Three 1 µF caps for seven ICs plus a 4 MHz oscillator. Add 100 nF at each IC.</li>
+<li><strong>No bus buffering</strong>, as on the Z80 SBC (item 5 there). The 65C02 drives the whole stack directly; the W65C02S outputs are rated for light loads.</li>
+<li><strong>Power input:</strong> same as the MTX board: 12 V on PROG pin 8 unswitched, no reverse-polarity, fuse or TVS, and the jack sleeve isn't board GND (return through SW2 and PW1). Check PW1's input rating against the silkscreen &quot;7VDC to 15VDC&quot;.</li>
+<li><strong>Data-bus convention:</strong> 4k7 pull-ups (<code>FFh</code>), as the Z80 SBC; the MTX board uses pull-downs. Pick one for all CPU boards.</li>
+<li><strong>Housekeeping:</strong>
+<ul>
+<li><code>V102-6502-2.xml</code> is a stale 2023 export of <code>V102-6502-0</code> (title &quot;NOVA 6502 BOARD for v101 Assembly&quot;). The ERC report is named <code>PHONO-SRC-00A-erc.rpt</code> (name left over from another project, as on the other boards).</li>
+<li>BoM values &quot;32kB ROM&quot;, &quot;32kB RAM&quot;, &quot;6522 VIA&quot; instead of the part numbers in the symbol fields (AT28C256-15PU, HM62256BLP-10, W65C22S6TPG-14). IC6 BoM &quot;74HC2G14&quot; vs symbol 74LVC2G14. X1 value &quot;TFT680&quot; (4 MHz not recorded). IC5's MPN/supplier fields are copied from the ATF16V8B-15PU (as on the MTX board).</li>
+<li>Schematic bus label &quot;A[0..17]&quot;. Silkscreen &quot;+5VDC REGULATOR&quot; (a buck module); &quot;32kB STATIC RAM - 0000-7EFF&quot; disagrees with the PLD (item 1).</li>
+<li>Folder: <code>scheme.pdf</code> and <code>scheme - Copy.pdf</code> (identical size), <code>V102-6502-2.kicad_sch-bak</code>, <code>fab.zip</code> alongside <code>fab/</code>.</li>
+<li>PLD source: stale comments (section 7), <code>Company</code> <code>xxx</code>, <code>Date</code> older than the file.</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="s10">10. Open questions</h2>
+<ul>
+<li>How the current 6502 firmware handles Zilog interrupts, and exactly what failed with the CTC (stuck <code>IRQB</code>, wrong counts, or register access).</li>
+<li>Which register operations clear <code>/INT</code> on the Z84C20/C30/C40 without an acknowledge cycle (UM0081).</li>
+<li>Whether VIA input reads (port pins, IFR, timers) are reliable on the built board, given the RAM contention.</li>
+<li>Whether the sound latch (leading-edge clocked) has worked from the 6502.</li>
+<li>PW1: same module as the Z80 SBC/MTX board, and its input range.</li>
+<li>Whether W65C22S port and handshake pins have internal bus-hold (floating CB1/CB2).</li>
+</ul>
+</article></div></section>
+</main>
+<footer><div class="wrap"><div class="bars"></div><p>NOVAZ80, by NOVA Embedded Solutions. A hobby project, built just for fun. <a href="../index.html">The story</a> · <a href="../credits.html">Credits</a></p></div></footer>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/viewer.js" defer></script>
+<script src="../assets/js/swipe.js" defer></script>
+</body>
+</html>

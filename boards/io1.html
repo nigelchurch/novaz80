@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>I/O board · NOVAZ80</title>
+<meta name="description" content="Serial, timers, parallel ports and two kinds of keyboard, shared by all three machines.">
+<meta name="theme-color" content="#0b0b0d">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" aria-label="Main"><div class="wrap"><a class="brand" href="../index.html">NOVAZ80</a>
+<ul><li><a href="../index.html#story">Story</a></li><li><a href="../design.html">Design</a></li><li><a href="../index.html#build">Build</a></li><li><a href="../index.html#bus">Bus</a></li><li><a href="../index.html#boards" aria-current="true">Boards</a></li></ul></div></nav>
+<main id="main">
+<header class="bhead"><div class="wrap"><div><p class="ref">V102-IO1-0<span class="pips" aria-hidden="true"><i></i><i></i><i></i><i class="on"></i><i></i><i></i><i></i><i></i></span></p><h1>I/O board</h1><p>Serial, timers, parallel ports and two kinds of keyboard, shared by all three machines.</p>
+<dl class="facts"><div><dt>Serial</dt><dd>Z80 SIO at 0Ch, over USB or DB9</dd></div><div><dt>Timers</dt><dd>Z80 CTC at 08h</dd></div><div><dt>Parallel</dt><dd>Z80 PIO at 10h</dd></div><div><dt>Keyboard</dt><dd>PS/2 or MTX matrix</dd></div><div><dt>Glue</dt><dd>GAL16V8</dd></div></dl><div class="btns"><a class="btn" href="../assets/docs/V102-IO1-0-schematic.pdf" data-sheets="1" data-id="io1" data-start="0" data-title="I/O board schematic" data-labels="Main sheet">See the schematic</a></div></div>
+<div class="model" data-glb="../assets/3d/io1.glb"><img src="../assets/img/iso-io1.webp" width="1300" height="850" alt="Render of the I/O board"><button type="button" class="mgo"><span>Rotate in 3D · 2.1 MB</span></button></div></div></header>
+<section class="dark sec"><div class="wrap"><h2>What's on the board</h2>
+<div class="map"><div class="pic"><div class="inner"><img src="../assets/img/top-io1.webp" width="1042" height="1064" alt="I/O board from above"><button type="button" class="spot" data-p="1" style="left:38.48%;top:33.56%" aria-label="1, Z84C40 SIO serial (0Ch)">1</button><button type="button" class="spot" data-p="2" style="left:38.0%;top:54.72%" aria-label="2, Z84C30 CTC (08h)">2</button><button type="button" class="spot" data-p="3" style="left:38.48%;top:76.07%" aria-label="3, Z84C20 PIO (10h)">3</button><button type="button" class="spot" data-p="4" style="left:13.53%;top:16.11%" aria-label="4, GAL16V8 I/O decode">4</button><button type="button" class="spot" data-p="5" style="left:5.76%;top:32.7%" aria-label="5, FT232RL USB serial">5</button><button type="button" class="spot" data-p="6" style="left:81.57%;top:18.78%" aria-label="6, 24 MHz baud oscillator">6</button><button type="button" class="spot" data-p="7" style="left:77.64%;top:37.37%" aria-label="7, 74LS193 ÷13 baud divider">7</button><button type="button" class="spot" data-p="8" style="left:79.27%;top:78.84%" aria-label="8, 74HC595 PS/2 shift registers">8</button><button type="button" class="spot" data-p="8" style="left:79.37%;top:65.78%" aria-label="8, 74HC595 PS/2 shift registers">8</button><button type="button" class="spot" data-p="9" style="left:76.78%;top:52.81%" aria-label="9, 74HC574 port C latch">9</button><button type="button" class="spot" data-p="10" style="left:34.07%;top:5.53%" aria-label="10, USB mini-B and DB9 serial">10</button><button type="button" class="spot" data-p="10" style="left:56.62%;top:6.48%" aria-label="10, USB mini-B and DB9 serial">10</button><button type="button" class="spot" data-p="11" style="left:45.49%;top:17.92%" aria-label="11, Serial receive: USB or DB9">11</button><button type="button" class="spot" data-p="12" style="left:67.75%;top:19.35%" aria-label="12, Baud ÷13/÷12 and 24 MHz/4M source">12</button><button type="button" class="spot" data-p="12" style="left:91.84%;top:18.11%" aria-label="12, Baud ÷13/÷12 and 24 MHz/4M source">12</button><button type="button" class="spot" data-p="13" style="left:64.01%;top:91.13%" aria-label="13, PS/2 keyboard">13</button><button type="button" class="spot" data-p="14" style="left:41.27%;top:95.9%" aria-label="14, MTX keyboard">14</button><button type="button" class="spot" data-p="15" style="left:95.68%;top:37.65%" aria-label="15, Port B and port C headers">15</button><button type="button" class="spot" data-p="15" style="left:95.68%;top:59.1%" aria-label="15, Port B and port C headers">15</button><button type="button" class="spot" data-p="16" style="left:4.51%;top:66.35%" aria-label="16, CTC timer header">16</button><button type="button" class="spot" data-p="17" style="left:14.88%;top:3.91%" aria-label="17, Stack-bus corner sockets">17</button><button type="button" class="spot" data-p="17" style="left:85.03%;top:3.91%" aria-label="17, Stack-bus corner sockets">17</button><button type="button" class="spot" data-p="17" style="left:3.26%;top:85.13%" aria-label="17, Stack-bus corner sockets">17</button><button type="button" class="spot" data-p="17" style="left:96.64%;top:85.13%" aria-label="17, Stack-bus corner sockets">17</button></div></div><ol class="plist"><li><button type="button" data-p="1"><span class="n">1</span><span class="r">IC3</span><span>Z84C40 SIO serial (0Ch)</span></button></li><li><button type="button" data-p="2"><span class="n">2</span><span class="r">IC2</span><span>Z84C30 CTC (08h)</span></button></li><li><button type="button" data-p="3"><span class="n">3</span><span class="r">IC1</span><span>Z84C20 PIO (10h)</span></button></li><li><button type="button" data-p="4"><span class="n">4</span><span class="r">IC4</span><span>GAL16V8 I/O decode</span></button></li><li><button type="button" data-p="5"><span class="n">5</span><span class="r">IC10</span><span>FT232RL USB serial</span></button></li><li><button type="button" data-p="6"><span class="n">6</span><span class="r">XT1</span><span>24 MHz baud oscillator</span></button></li><li><button type="button" data-p="7"><span class="n">7</span><span class="r">IC11</span><span>74LS193 ÷13 baud divider</span></button></li><li><button type="button" data-p="8"><span class="n">8</span><span class="r">IC5, IC6</span><span>74HC595 PS/2 shift registers</span></button></li><li><button type="button" data-p="9"><span class="n">9</span><span class="r">IC8</span><span>74HC574 port C latch</span></button></li><li><button type="button" data-p="10"><span class="n">10</span><span class="r">J10, J12</span><span>USB mini-B and DB9 serial</span></button></li><li><button type="button" data-p="11"><span class="n">11</span><span class="r">SW1</span><span>Serial receive: USB or DB9</span></button></li><li><button type="button" data-p="12"><span class="n">12</span><span class="r">JP1, JP2</span><span>Baud ÷13/÷12 and 24 MHz/4M source</span></button></li><li><button type="button" data-p="13"><span class="n">13</span><span class="r">J5</span><span>PS/2 keyboard</span></button></li><li><button type="button" data-p="14"><span class="n">14</span><span class="r">J6</span><span>MTX keyboard</span></button></li><li><button type="button" data-p="15"><span class="n">15</span><span class="r">J7, J9</span><span>Port B and port C headers</span></button></li><li><button type="button" data-p="16"><span class="n">16</span><span class="r">J8</span><span>CTC timer header</span></button></li><li><button type="button" data-p="17"><span class="n">17</span><span class="r">J1…</span><span>Stack-bus corner sockets</span></button></li></ol></div></div></section>
+<section class="paper sec"><div class="wrap cols3"><div><h2>How it works</h2><ul><li>MTX-style map: CTC 08h, SIO 0Ch, PIO 10h, strobes and port C latch 05h–07h</li><li>Head of the daisy chain: CTC → SIO → PIO → IEO1 into the CPU board. VDP interrupt on CTC ch0</li><li>24 MHz ÷ 13 = 1.846 MHz into CTC ch2, which clocks the SIO: 115 200 down to 4 800 baud via USB or DB9</li><li>PS/2 keyboard shifted in by two 74HC595s; MTX keyboard strobes on J6</li></ul></div><div><h2>What it took</h2><ul><li>Hardware PS/2 receiver: an RC timeout 100 µs after the last clock latches the byte to the PIO and interrupts. No bit-banging</li><li>Re-synchronises on every frame, so a noise edge corrupts one key at most</li><li>JP1 lets any logic family of 74x193 give the right baud division</li><li>One board serves Z80, 6502 and MTX machines</li></ul></div><div><h2>Next revision</h2><ul><li>DB9 is logic level only: add an RS-232 transceiver</li><li>1.8432 MHz oscillator to replace 24 MHz + &#x27;193 and free baud from bus CLK</li><li>PS/2 pull-ups; tie off floating inputs; reset for port C</li><li>Decoupling; use SIO channel A; buffer the keyboard cable</li></ul></div></div></section>
+
+<section class="dark sec" id="schematic"><div class="wrap"><h2>Schematic</h2><p class="soft">Tap to open it full screen, then pinch, scroll or drag to explore. It stays sharp at any zoom.</p>
+<div class="sheets"><a class="sheet" href="../assets/docs/V102-IO1-0-schematic.pdf" data-sheets="1" data-id="io1" data-start="0" data-title="I/O board schematic" data-labels="Main sheet"><img src="../assets/sch/io1-1.webp" width="1100" height="778" alt="I/O board schematic, main sheet"><span>Main sheet<b>Open</b></span></a></div></div></section>
+<section class="paper sec"><div class="wrap"><h2>Photo and files</h2>
+<div class="ph"><span class="tag">Live photo: board-io1.jpg</span><b>The built I/O board</b><span>Straight down or three-quarter view, chips fitted, plain background.</span></div>
+<h3 style="margin-top:36px">Downloads</h3><ul class="dl"><li><a href="../assets/docs/V102-IO1-0-schematic.pdf">Schematic (PDF)</a></li><li><a href="../assets/docs/V102-IO1-0-board.pdf">Board layout (PDF)</a></li><li><a href="../assets/docs/V102-IO1-0-bom.csv">Parts list (CSV)</a></li><li><a href="../assets/docs/V102-IO1-00.pld">PLD source</a></li><li><a href="io1-notes.html">Full design notes</a></li></ul><details><summary>Read the PLD source, V102-IO1-00</summary><pre class="code" tabindex="0">Name     V102-IO1-0 ;
+PartNo   00 ;
+Date     10/6/23 ;
+Revision 0 ;
+Designer Nigel ;
+Company  xxx ;
+Assembly None ;
+Location  ;
+Device   g16v8a ;
+
+/* *************** INPUT PINS *********************/
+PIN 	1 	    = 	    IORQB 	    ; /*                */
+PIN  	2   	=   	A0  	    ; /*                */ 
+PIN  	3   	=   	A1 	        ; /*                */ 
+PIN  	4   	=  	    A2   	    ; /*                */ 
+PIN  	5   	=   	A3   	    ; /*                */ 
+PIN  	6   	=   	A4   	    ; /*                */ 
+PIN  	7   	=   	A5   	    ; /*                */ 
+PIN  	8   	=   	A6  	    ; /*                */ 
+PIN  	9   	=   	A7  	    ; /*                */ 
+PIN  	11  	=   	RDB  	    ; /*                */ 
+PIN  	12  	=   	WRB  	    ; /*                */ 
+
+FIELD ADDR      =       [A7..A0]    ;
+
+/* *************** OUTPUT PINS *********************/
+PIN  	19	    =       PORTCOUT	; /*         */ 
+PIN  	18	    =       OUT5  	    ;           
+PIN  	17   	=       IN6  	    ;         
+PIN  	16   	=       IN5  	    ;           
+PIN  	15   	=       CTCB  	    ; /*         */ 
+PIN  	14   	=       PIOB  	    ; /*         */ 
+PIN  	13   	=       SIOB  	    ; /*         */ 
+
+/* *************** LOGIC FORMULA *********************/
+
+!PORTCOUT	=   (ADDR:7         &amp;   !IORQB  &amp;   !WRB)   ; /* output port 7 - 0000 0111 */ 
+!CTCB		=   (ADDR:[8..B]    &amp;   !IORQB)             ; /* CTC1 IN and OUT 8,9,A,B */
+!PIOB		=   (ADDR:[10..13]  &amp;   !IORQB) 	        ; /* PIO1 IN and OUT 10,11,12,13 */
+!SIOB		=   (ADDR:[C..F]    &amp;   !IORQB)    	        ; /* SIO IN and OUT C,D,E,F */
+
+!IN5        =   (ADDR:5         &amp;   !IORQB  &amp;   !RDB)   ;
+!IN6        =   (ADDR:6         &amp;   !IORQB  &amp;   !RDB)   ;
+!OUT5       =   (ADDR:5         &amp;   !IORQB  &amp;   !WRB)   ;</pre></details></div></section>
+<section class="dark sec"><div class="wrap pn"><a rel="prev" href="mtx.html">← MTX512 CPU board</a><a href="../index.html#boards">All boards</a><a rel="next" href="vdp.html">Video + sound →</a></div></section>
+</main>
+<footer><div class="wrap"><div class="bars"></div><p>NOVAZ80, by NOVA Embedded Solutions. A hobby project, built just for fun. <a href="../index.html">The story</a> · <a href="../credits.html">Credits</a></p></div></footer>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/viewer.js" defer></script>
+<script src="../assets/js/swipe.js" defer></script>
+</body>
+</html>

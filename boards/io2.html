@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>I/O 2 with LCD · NOVAZ80</title>
+<meta name="description" content="A front panel for the top of the stack: four lines of text, eight buttons, two spare ports.">
+<meta name="theme-color" content="#0b0b0d">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" aria-label="Main"><div class="wrap"><a class="brand" href="../index.html">NOVAZ80</a>
+<ul><li><a href="../index.html#story">Story</a></li><li><a href="../design.html">Design</a></li><li><a href="../index.html#build">Build</a></li><li><a href="../index.html#bus">Bus</a></li><li><a href="../index.html#boards" aria-current="true">Boards</a></li></ul></div></nav>
+<main id="main">
+<header class="bhead"><div class="wrap"><div><p class="ref">V102-IO2-0<span class="pips" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i class="on"></i><i></i><i></i></span></p><h1>I/O 2 with LCD</h1><p>A front panel for the top of the stack: four lines of text, eight buttons, two spare ports.</p>
+<dl class="facts"><div><dt>Display</dt><dd>20 × 4 HD44780 at 30h</dd></div><div><dt>Ports</dt><dd>82C55A at 24h</dd></div><div><dt>Buttons</dt><dd>Eight</dd></div><div><dt>Position</dt><dd>Top of the stack</dd></div><div><dt>Glue</dt><dd>GAL16V8</dd></div></dl><div class="btns"><a class="btn" href="../assets/docs/V102-IO2-0-schematic.pdf" data-sheets="1" data-id="io2" data-start="0" data-title="I/O 2 with LCD schematic" data-labels="Main sheet">See the schematic</a></div></div>
+<div class="model" data-glb="../assets/3d/io2.glb"><img src="../assets/img/iso-io2.webp" width="1300" height="850" alt="Render of the I/O 2 with LCD"><button type="button" class="mgo"><span>Rotate in 3D · 1.3 MB</span></button></div></div></header>
+<section class="dark sec"><div class="wrap"><h2>What's on the board</h2>
+<div class="map"><div class="pic"><div class="inner"><img src="../assets/img/top-io2.webp" width="1042" height="1064" alt="I/O 2 with LCD from above"><button type="button" class="spot" data-p="1" style="left:53.93%;top:42.8%" aria-label="1, 20 × 4 HD44780 LCD (30h/31h)">1</button><button type="button" class="spot" data-p="2" style="left:25.33%;top:79.08%" aria-label="2, Push-buttons on 82C55 port C">2</button><button type="button" class="spot" data-p="2" style="left:83.58%;top:79.08%" aria-label="2, Push-buttons on 82C55 port C">2</button><button type="button" class="spot" data-p="3" style="left:37.95%;top:6.14%" aria-label="3, LCD contrast">3</button><button type="button" class="spot" data-p="4" style="left:56.49%;top:52.69%" aria-label="4, 82C55A PPI, 24h–27h (under the LCD)">4</button><button type="button" class="spot" data-p="5" style="left:44.84%;top:31.09%" aria-label="5, GAL16V8 I/O decode (under the LCD)">5</button><button type="button" class="spot" data-p="6" style="left:84.2%;top:37.52%" aria-label="6, 74LVC2G14 reset inverter (under the LCD)">6</button><button type="button" class="spot" data-p="7" style="left:21.71%;top:3.26%" aria-label="7, Stack-bus corner sockets">7</button><button type="button" class="spot" data-p="7" style="left:86.23%;top:3.26%" aria-label="7, Stack-bus corner sockets">7</button><button type="button" class="spot" data-p="7" style="left:11.03%;top:85.03%" aria-label="7, Stack-bus corner sockets">7</button><button type="button" class="spot" data-p="7" style="left:96.91%;top:85.03%" aria-label="7, Stack-bus corner sockets">7</button></div></div><ol class="plist"><li><button type="button" data-p="1"><span class="n">1</span><span class="r">M1</span><span>20 × 4 HD44780 LCD (30h/31h)</span></button></li><li><button type="button" data-p="2"><span class="n">2</span><span class="r">SW0–SW7</span><span>Push-buttons on 82C55 port C</span></button></li><li><button type="button" data-p="3"><span class="n">3</span><span class="r">RV1</span><span>LCD contrast</span></button></li><li><button type="button" data-p="4"><span class="n">4</span><span class="r">IC2</span><span>82C55A PPI, 24h–27h (under the LCD)</span></button></li><li><button type="button" data-p="5"><span class="n">5</span><span class="r">IC1</span><span>GAL16V8 I/O decode (under the LCD)</span></button></li><li><button type="button" data-p="6"><span class="n">6</span><span class="r">IC3</span><span>74LVC2G14 reset inverter (under the LCD)</span></button></li><li><button type="button" data-p="7"><span class="n">7</span><span class="r">J1…</span><span>Stack-bus corner sockets</span></button></li></ol></div></div></section>
+<section class="paper sec"><div class="wrap cols3"><div><h2>How it works</h2><ul><li>GAL16V8 decodes the 82C55A PPI at 24h–27h and the LCD at 30h/31h (RS = A0)</li><li>Ports A and B on J5 for user I/O; eight buttons on port C (pressed = 1)</li><li>20 × 4 HD44780 LCD on the data bus in 8-bit mode, E from the PLD</li><li>Uses only A0–A7, D0–D7, IORQ, RD, WR, RST; the LCD makes it the top of the stack</li></ul></div><div><h2>What it took</h2><ul><li>Slow HD44780 driven straight from the CPU bus with no extra logic</li><li>Works on Z80 and 6502 through the shared I/O cycle</li><li>A compact front panel: display and buttons in one board</li></ul></div><div><h2>Next revision</h2><ul><li>Qualify LCD E with /RD or /WR: it answers interrupt-acknowledge cycles</li><li>LCD R/W timing from WRB on the Z80</li><li>Backlight resistor and switch; move the GAL out from under the LCD</li><li>Optional button interrupt</li></ul></div></div></section>
+
+<section class="dark sec" id="schematic"><div class="wrap"><h2>Schematic</h2><p class="soft">Tap to open it full screen, then pinch, scroll or drag to explore. It stays sharp at any zoom.</p>
+<div class="sheets"><a class="sheet" href="../assets/docs/V102-IO2-0-schematic.pdf" data-sheets="1" data-id="io2" data-start="0" data-title="I/O 2 with LCD schematic" data-labels="Main sheet"><img src="../assets/sch/io2-1.webp" width="1100" height="778" alt="I/O 2 with LCD schematic, main sheet"><span>Main sheet<b>Open</b></span></a></div></div></section>
+<section class="paper sec"><div class="wrap"><h2>Photo and files</h2>
+<div class="ph"><span class="tag">Live photo: board-io2.jpg</span><b>The built I/O 2 with LCD</b><span>Straight down or three-quarter view, chips fitted, plain background.</span></div>
+<h3 style="margin-top:36px">Downloads</h3><ul class="dl"><li><a href="../assets/docs/V102-IO2-0-schematic.pdf">Schematic (PDF)</a></li><li><a href="../assets/docs/V102-IO2-0-board.pdf">Board layout (PDF)</a></li><li><a href="../assets/docs/V102-IO2-0-bom.csv">Parts list (CSV)</a></li><li><a href="../assets/docs/V102-IO2-00.pld">PLD source</a></li><li><a href="io2-notes.html">Full design notes</a></li></ul><details><summary>Read the PLD source, V102-IO2-00</summary><pre class="code" tabindex="0">Name     V102-IO2-0 ;
+PartNo   00 ;
+Date     5/7/23 ;
+Revision 0 ;
+Designer Nigel ;
+Company  xxx ;
+Assembly None ;
+Location  ;
+Device   g16v8a ;
+
+/* *************** INPUT PINS *********************/
+PIN  	1  	    =   	A0  	    ; 
+PIN  	2 	    =   	A1 	        ; 
+PIN  	3	    =  	    A2   	    ; 
+PIN  	4	    =   	A3   	    ; 
+PIN  	5	    =   	A4   	    ; 
+PIN  	6	    =   	A5   	    ; 
+PIN  	7	    =   	A6  	    ; 
+PIN  	8	    =   	A7  	    ; 
+PIN  	9	    =   	IORQB  	    ; 
+
+FIELD ADDR      =       [A7..A0]    ;
+
+
+/* *************** OUTPUT PINS *********************/
+PIN  	15	    =       8255CS  	; 
+PIN  	16	    =       LCD  	    ;           
+
+
+/* *************** LOGIC FORMULA *********************/
+
+LCD         =   (ADDR:[30..31]      &amp;   !IORQB)     ; // active hi
+!8255CS		=   (ADDR:[24..27]      &amp;   !IORQB)     ; // 4 addresses after the lcd a,b,c,ctrl</pre></details></div></section>
+<section class="dark sec"><div class="wrap pn"><a rel="prev" href="vdp.html">← Video + sound</a><a href="../index.html#boards">All boards</a><a rel="next" href="pr1.html">Fast programmer →</a></div></section>
+</main>
+<footer><div class="wrap"><div class="bars"></div><p>NOVAZ80, by NOVA Embedded Solutions. A hobby project, built just for fun. <a href="../index.html">The story</a> · <a href="../credits.html">Credits</a></p></div></footer>
+<script src="../assets/js/main.js" defer></script>
+<script src="../assets/js/viewer.js" defer></script>
+<script src="../assets/js/swipe.js" defer></script>
+</body>
+</html>

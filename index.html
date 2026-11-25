@@ -1,26 +1,285 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en-GB">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Nigel</title>
-	<link rel="icon" type="image/png" href="favicon.png">
-	<link rel="stylesheet" href="styles/style.css">
-	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
-	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
-	rel="stylesheet"integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NOVAZ80: a home computer, rebuilt one board at a time</title>
+<meta name="description" content="A homebrew family of stacking 8-bit boards: a Z80, a 6502 and a Memotech MTX512 recreation, and the story of how they came about.">
+<meta name="theme-color" content="#0b0b0d">
+<link rel="icon" type="image/png" href="assets/img/favicon.png">
+<link rel="stylesheet" href="assets/css/style.css">
 </head>
-
 <body>
-	
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" aria-label="Main"><div class="wrap"><a class="brand" href="#top">NOVAZ80</a>
+<ul><li><a href="#story">Story</a></li><li><a href="#design">Design</a></li><li><a href="#build">Build</a></li><li><a href="#bus">Bus</a></li><li><a href="#boards">Boards</a></li></ul></div></nav>
 
+<header class="hero" id="top"><div class="wrap">
+  <div>
+    <h1>The home computer, rebuilt one board at a time.</h1>
+    <p>Stack the same small boards three ways and you get a Z80 machine, a 6502 machine, or a Memotech MTX512 that runs its original software.</p>
+    <div class="btns"><a class="btn" href="#story">Read the story</a><a class="btn ghost" href="#build">Build a machine</a></div>
+  </div>
+  <div class="stack" style="--n:5"><div class="deck">
+    <img src="assets/img/iso-pr1.webp" width="1300" height="850" alt="" style="--i:0">
+    <img src="assets/img/iso-z80.webp" width="1300" height="850" alt="" style="--i:1">
+    <img src="assets/img/iso-vdp.webp" width="1300" height="850" alt="" style="--i:2">
+    <img src="assets/img/iso-io1.webp" width="1300" height="850" alt="" style="--i:3">
+    <img src="assets/img/iso-io2.webp" width="1300" height="850" alt="Five NOVAZ80 boards stacked, with an LCD on top" style="--i:4">
+  </div></div>
+</div></header>
+<div class="plate"><div class="wrap"><div class="wordmark">NOVAZ80</div><div class="bars"></div>
+  <dl class="specs"><div><dt>boards</dt><dd>8</dd></div><div><dt>machines</dt><dd>3</dd></div><div><dt>bus pins</dt><dd>64</dd></div><div><dt>per module</dt><dd>100 × 100 mm</dd></div></dl>
+</div></div>
 
-<script src="scripts/script.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"
-	integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r"
-	crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"
-	integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+"
-	crossorigin="anonymous"></script>
+<main id="main">
+<div class="tale" id="story">
+<nav class="years" aria-label="Story chapters"><ul><li><a href="#c1983">1983</a></li><li><a href="#spark">Ben Eater</a></li><li><a href="#mar">Z80</a></li><li><a href="#apr">Programmer</a></li><li><a href="#may">Modular</a></li><li><a href="#aug">Video</a></li><li><a href="#sep">6502</a></li><li><a href="#nov">MTX512</a></li><li><a href="#later">Faster</a></li><li><a href="#line">Timeline</a></li></ul></nav>
+<div class="pager">
+<div class="paper">
+
+<section class="chapter" id="c1983"><div class="wrap">
+  <div class="when">1983<small>The Memotech MTX</small></div>
+  <div>
+    <h2>I've always loved the MTX.</h2>
+    <p class="lede">NOVAZ80 is a hobby project, built just for fun. One machine was in the back of my mind from the start.</p>
+    <div class="two">
+      <p>The Memotech MTX 500 had a 4 MHz Z80, 32 KB of RAM, a full-travel keyboard and a case of brushed, extruded aluminium. It was arguably the most elegant of the budget home computers.</p>
+      <p>It arrived late, was poorly marketed and never sold as it should have. That only makes it more fun to bring back.</p>
+    </div>
+    <figure class="photo cut"><img src="assets/img/photo-mtx500.webp" width="1600" height="960" alt="Black Memotech MTX500 computer with a red pinstripe across the case"><figcaption>The Memotech MTX 500. <span class="cr">Photo: <a href="https://commons.wikimedia.org/wiki/File:Memotech_MTX500_(cropped).jpg">Bilby</a>, <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>, resized.</span></figcaption></figure>
+    <div class="ph"><span class="tag">Live photo: mtx-manual.jpg</span><b>The surviving MTX manual</b><span>The cover, or the schematics at the back that the CPU board came from.</span></div>
+  </div>
+</div></section>
+
+<section class="chapter" id="spark"><div class="wrap">
+  <div class="when">The spark<small>Ben Eater's 6502</small></div>
+  <div>
+    <h2>It started with Ben Eater.</h2>
+    <p class="lede">Ben Eater's videos build a working 6502 computer on breadboards, one wire and one reason at a time. Without them there would be no NOVAZ80.</p>
+    <p>My first board was his breadboard 6502 design turned into a PCB. The teaching and the original design are his. If you have not seen them, start there: <a class="more" href="https://eater.net/6502">eater.net/6502</a>.</p>
+    <div class="phs">
+      <div class="ph"><span class="tag">Live photo: breadboard-6502.jpg</span><b>The breadboard, if one was built</b><span>Wires and all. The messier it is, the better the before-and-after.</span></div>
+      <div class="ph"><span class="tag">Live photo: first-6502-pcb.jpg</span><b>The first 6502 PCB</b><span>With the ZIF socket showing.</span></div>
+    </div>
+    <p class="draft"><b>Draft, to confirm:</b> was it built on breadboard first, or straight to a PCB?</p>
+  </div>
+</div></section>
+
+<section class="chapter" id="mar"><div class="wrap">
+  <div class="when">Mar 2022<small>Z80 SBC</small></div>
+  <div>
+    <h2>The ROM spent more time out of the board than in it.</h2>
+    <div class="two">
+      <p>The point was to learn to code, and that takes many tries. Each one meant pulling the ROM, programming it and pushing it back. A zero-insertion-force socket helped, but not enough.</p>
+      <p>The same approach went into a Z80 board, using the processor inside the MTX. It was a complete computer. Changing its program was still slow.</p>
+    </div>
+    <p><a class="more" href="boards/z80.html">Inside the Z80 SBC</a></p>
+  </div>
+</div></section>
+</div>
+
+<div class="dark">
+<section class="chapter" id="apr"><div class="wrap">
+  <div class="when">Apr 2022<small>In-circuit programming</small></div>
+  <div>
+    <h2>Code, click, upload.</h2>
+    <p class="lede">So I built a programmer that takes the bus away from the CPU and writes the ROM where it sits.</p>
+    <p class="soft">Below is one of my own uploads: the MTX system ROM, 32,768 bytes sent, checked, burned and verified in 17.7 seconds. The replay is shortened.</p>
+    <div class="duo">
+      <div class="term"><header><span>Upload ROM</span><button type="button" id="replay" hidden>Replay</button></header>
+<pre id="term"><span class="b">ATTEMPTING TO UPLOAD TO TARGET...</span>
+
+Reading binary file...
+Writing 32768 bytes to programmer...
+
+Transferring...
+<span class="o">##################################</span>
+Verifying...
+<span class="o">##################################</span>
+
+<span class="b">-- File transfer to programmer successful</span>
+
+Uploading to ROM...
+<span class="o">##################################</span>
+Verifying ROM...
+<span class="o">##################################</span>
+
+<span class="w">PROCESS SUCCESSFUL</span>
+Process complete (duration 0:00:17.703169)</pre></div>
+      <ol class="steps"><li>One command in VS Code assembles the source.</li><li>A Python script finds the programmer and sends the binary.</li><li>The programmer buffers it in serial RAM and echoes it back for checking.</li><li>It requests the bus. The CPU lets go of its address, data and control lines.</li><li>It writes the ROM, reads every byte back and compares.</li><li>It releases the bus and resets the target, which runs the new code.</li></ol>
+    </div>
+    <p style="margin-top:24px"><a class="more" href="design.html#flow">The full flow, step by step</a></p>
+    <div class="ph"><span class="tag">Video: upload-on-bench.mp4</span><b>The programmer at work</b><span>Ten to twenty seconds of the red and blue LEDs during an upload, then the target restarting.</span></div>
+  </div>
+</div></section>
+</div>
+
+<div class="paper">
+<section class="chapter" id="may"><div class="wrap">
+  <div class="when">May 2022<small>Making it modular</small></div>
+  <div>
+    <h2>One bus, so any board can sit anywhere.</h2>
+    <div class="two">
+      <p>JLCPCB's best price covers boards up to 100 × 100 mm. That limit became the standard. Smaller boards also meant each design could be proved before the next began.</p>
+      <p>Every board carries the whole bus through its four corners, so stacking order does not matter electrically. It also buried the signals I wanted to probe. The answer was a flat version of the same machine.</p>
+    </div>
+    <div class="pair">
+      <figure><img src="assets/img/stacked.webp" width="1600" height="960" alt="Boards stacked in a tower"><figcaption>Stacked: the compact machine.</figcaption></figure>
+      <figure><img src="assets/img/flat.webp" width="1600" height="960" alt="Three boards side by side on a backplane programmer"><figcaption>Flat: the same machine on the three-pad programmer, open to a probe.</figcaption></figure>
+    </div>
+    <p style="margin-top:24px"><a class="more" href="design.html#stacked">See the block diagrams</a> or go <a class="more" href="boards/io1.html">inside the I/O board</a></p>
+  </div>
+</div></section>
+
+<section class="chapter" id="aug"><div class="wrap">
+  <div class="when">Aug 2022<small>Video and sound</small></div>
+  <div>
+    <h2>Something to look at.</h2>
+    <div class="two">
+      <p>The video board uses the same display and sound chips as the Memotech. The display chip expects dynamic RAM that is long obsolete, so one static RAM and three latches stand in for it.</p>
+      <p>The hard part was timing: catching each half of the address at the moment it is valid. A short chain of inverters provides the delay.</p>
+    </div>
+    <p><a class="more" href="boards/vdp.html">Inside the video and sound board</a></p>
+    <div class="ph"><span class="tag">Live photo: first-picture.jpg</span><b>The first picture on a screen</b><span>A monitor showing any output from the video board.</span></div>
+  </div>
+</div></section>
+
+<section class="chapter" id="sep"><div class="wrap">
+  <div class="when">Sep 2022<small>6502 SBC</small></div>
+  <div>
+    <h2>The 6502 came back, and had to learn Z80.</h2>
+    <div class="two">
+      <p>I never gave up on the 6502. A new CPU board swaps in for the Z80 and uses the same programmer, I/O and video boards. The upload command picks the right assembler.</p>
+      <p>The bus was designed around the Z80, and the two think differently. Loading a byte from a fixed address takes a Z80 13 clock states and a 6502 just 4 cycles. A clock divider and a PLD on the CPU board bridge the gap.</p>
+    </div>
+    <p>It drives the Zilog PIO today. The CTC timer is still work in progress. <a class="more" href="boards/6502.html">Inside the 6502 SBC</a></p>
+  </div>
+</div></section>
+</div>
+
+<div class="alu">
+<section class="chapter" id="nov"><div class="wrap">
+  <div class="when">Nov 2022<small>Memotech MTX512</small></div>
+  <div>
+    <h2>The machine I was working towards all along.</h2>
+    <p class="lede">With the I/O and video boards already built, one new CPU board turned the stack into a Memotech MTX512.</p>
+    <figure class="photo "><img src="assets/img/photo-mtx512.webp" width="1600" height="760" alt="Memotech MTX512 computer seen from above on a wooden floor"><figcaption>An original Memotech MTX512. <span class="cr">Photo: <a href="https://commons.wikimedia.org/wiki/File:Memotech_MTX512_(Thomas_Cont%C3%A9).jpg">Thomas Conté</a>, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC BY-SA 2.0</a>, cropped and resized.</span></figcaption></figure>
+    <div class="two">
+      <p>The board follows the schematics in the back of the original manual. Static RAM replaces the obsolete dynamic RAM. The memory paging and I/O map match the original, and its BIOS, BASIC and games run unmodified.</p>
+      <p>The main ROM had an 8 KB block going spare. It now holds my own additions, so I can send Z80 code from VS Code straight into the MTX's RAM and run it. That story will get its own page.</p>
+    </div>
+    <p><a class="more" href="boards/mtx.html">Inside the MTX board, with its paging</a></p>
+    <div class="phs">
+      <div class="ph"><span class="tag">Live photo: mtx-running.jpg</span><b>The MTX stack running a game</b><span>Screen and boards in one shot. The most important photo on the site.</span></div>
+      <div class="ph"><span class="tag">Live photo: mtx-keyboard.jpg</span><b>The keyboard built for it</b><span>On its own, or connected to the stack.</span></div>
+    </div>
+    <p class="draft"><b>Draft, check:</b> the milestones put the 6502 board before the MTX, but the written story has it after. Which is right?</p>
+  </div>
+</div></section>
+</div>
+
+<div class="paper">
+<section class="chapter" id="later"><div class="wrap">
+  <div class="when">Later<small>A faster programmer</small></div>
+  <div>
+    <h2>Sixty-four bytes at a time.</h2>
+    <div class="two">
+      <p>The first programmer reached the bus through I²C expanders and wrote one byte at a time. A full ROM took minutes.</p>
+      <p>The ROM's datasheet offered a 64-byte page mode, but only if you can keep up. An ATmega64A has enough pins to drive the bus directly, so the second programmer can. It made the upload above.</p>
+    </div>
+    <dl class="race"><dt>Byte mode: 32,768 write cycles for a full ROM</dt><dd><i style="width:100%"></i></dd><dt>Page mode: 512 write cycles</dt><dd><i class="short" style="width:1.56%"></i></dd></dl>
+    <p><a class="more" href="boards/pr2.html">The first programmer</a> and <a class="more" href="boards/pr1.html">the fast one</a></p>
+  </div>
+</div></section>
+
+<section class="chapter" id="line"><div class="wrap">
+  <div class="when">2022<small>In one line</small></div>
+  <div><h2>Six steps in nine months.</h2>
+    <ol class="rail"><li><time datetime="2022-03">Mar</time>Z80 single-board computer</li><li><time datetime="2022-04">Apr</time>In-circuit programmer</li><li><time datetime="2022-05">May</time>I/O board</li><li><time datetime="2022-08">Aug</time>Video and sound board</li><li><time datetime="2022-09">Sep</time>6502 single-board computer</li><li><time datetime="2022-11">Nov</time>Memotech MTX512 recreated</li></ol>
+  </div>
+</div></section>
+</div>
+
+</div>
+</div>
+
+<div class="dark">
+<section class="sec" id="design"><div class="wrap">
+  <h2>How it fits together</h2>
+  <p class="soft">The same boards, wired two ways.</p>
+  <!--diagrams--><div class="pick"><input type="radio" name="asm" id="asm1" checked><label for="asm1">Stacked</label><input type="radio" name="asm" id="asm2"><label for="asm2">Side by side</label><div class="pane p1"><figure class="diagram" id="d-stacked" data-title="Stacked assembly"><svg class="wide" viewBox="0 0 1240 560" role="img" aria-label="Block diagram of the stacked machine: programmer, CPU, video and I/O boards joined by one bus. The CPU board makes 5 volts for the others."><defs><marker id="wide-st-da" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mda" d="M0 0L10 5L0 10z"/></marker><marker id="wide-st-dp" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mdp" d="M0 0L10 5L0 10z"/></marker></defs><rect class="db" x="20" y="190" width="235" height="250" rx="10"/><text class="dn" x="32" y="429" text-anchor="start">Programmer board</text><rect class="db" x="335" y="190" width="235" height="250" rx="10"/><text class="dn" x="558" y="429" text-anchor="end">CPU board</text><rect class="db" x="650" y="190" width="235" height="250" rx="10"/><text class="dn" x="873" y="429" text-anchor="end">Video board</text><rect class="db" x="965" y="190" width="235" height="250" rx="10"/><text class="dn" x="1188" y="429" text-anchor="end">I/O board</text><polygon class="dbus" points="247.0,226.0 265.0,203.2 265.0,213.0 325.0,213.0 325.0,203.2 343.0,226.0 325.0,248.8 325.0,239.0 265.0,239.0 265.0,248.8"/><text class="dbt" x="295.0" y="231.0" text-anchor="middle">BUS</text><polygon class="dbus" points="562.0,226.0 580.0,203.2 580.0,213.0 640.0,213.0 640.0,203.2 658.0,226.0 640.0,248.8 640.0,239.0 580.0,239.0 580.0,248.8"/><text class="dbt" x="610.0" y="231.0" text-anchor="middle">BUS</text><polygon class="dbus" points="877.0,226.0 895.0,203.2 895.0,213.0 955.0,213.0 955.0,203.2 973.0,226.0 955.0,248.8 955.0,239.0 895.0,239.0 895.0,248.8"/><text class="dbt" x="925.0" y="231.0" text-anchor="middle">BUS</text><rect class="dc" x="44" y="256" width="173" height="118" rx="3"/><text class="dt" x="130.5" y="301.0" text-anchor="middle">In-circuit</text><text class="dt" x="130.5" y="320.0" text-anchor="middle">parallel</text><text class="dt" x="130.5" y="339.0" text-anchor="middle">programmer</text><rect class="dc" x="355" y="256" width="94" height="40" rx="3"/><text class="dt" x="402.0" y="281.0" text-anchor="middle">CPU</text><rect class="dc" x="458" y="256" width="94" height="40" rx="3"/><text class="dt" x="505.0" y="281.0" text-anchor="middle">PIO</text><rect class="dc" x="355" y="306" width="94" height="40" rx="3"/><text class="dt" x="402.0" y="331.0" text-anchor="middle">ROM</text><rect class="dc" x="458" y="306" width="94" height="40" rx="3"/><text class="dt" x="505.0" y="331.0" text-anchor="middle">RAM</text><rect class="dc" x="355" y="356" width="94" height="40" rx="3"/><text class="dt" x="402.0" y="381.0" text-anchor="middle">5 V DC</text><polygon class="dr" points="217.0,326.0 235.0,306.8 235.0,315.0 337.0,315.0 337.0,306.8 355.0,326.0 337.0,345.2 337.0,337.0 235.0,337.0 235.0,345.2"/><polyline class="dp" points="355,368 219,368" marker-end="url(#wide-st-dp)"/><text class="ds" x="295" y="361" text-anchor="middle">5 V</text><rect class="dc" x="670" y="256" width="94" height="40" rx="3"/><text class="dt" x="717.0" y="281.0" text-anchor="middle">VDP</text><rect class="dc" x="773" y="256" width="94" height="40" rx="3"/><text class="dt" x="820.0" y="281.0" text-anchor="middle">Sound</text><rect class="dc" x="670" y="306" width="94" height="40" rx="3"/><text class="dt" x="717.0" y="331.0" text-anchor="middle">VRAM</text><rect class="dc" x="985" y="256" width="82" height="40" rx="3"/><text class="dt" x="1026.0" y="281.0" text-anchor="middle">UART</text><rect class="dc" x="1099" y="256" width="82" height="40" rx="3"/><text class="dt" x="1140.0" y="281.0" text-anchor="middle">FTDI</text><polygon class="dr" points="1067.0,276.0 1080.3,265.5 1080.3,270.0 1085.7,270.0 1085.7,265.5 1099.0,276.0 1085.7,286.5 1085.7,282.0 1080.3,282.0 1080.3,286.5"/><rect class="dc" x="985" y="306" width="196" height="40" rx="3"/><text class="dt" x="1083.0" y="331.0" text-anchor="middle">Parallel I/O</text><rect class="dc" x="985" y="356" width="196" height="40" rx="3"/><text class="dt" x="1083.0" y="381.0" text-anchor="middle">Counter / timer</text><polyline class="dp" points="570,280 650,280" marker-end="url(#wide-st-dp)"/><text class="ds" x="610" y="274" text-anchor="middle">5 V</text><polyline class="dp" points="885,280 965,280" marker-end="url(#wide-st-dp)"/><text class="ds" x="925" y="274" text-anchor="middle">5 V</text><g class="dpc" transform="translate(112 28)"><rect x="0" y="0" width="62" height="42" rx="4"/><rect class="scr" x="5" y="5" width="52" height="32"/><path d="M24 42h14l4 9H20z"/><rect x="70" y="0" width="22" height="51" rx="3"/></g><polyline class="da" points="157,88 157,256" marker-end="url(#wide-st-da)" marker-start="url(#wide-st-da)"/><text class="ds" x="166" y="140" text-anchor="start">USB</text><polyline class="da" points="717,256 717,88" marker-end="url(#wide-st-da)"/><text class="dl" x="717" y="74" text-anchor="middle">YPbPr video</text><text class="ds" x="726" y="140" text-anchor="start">RCA</text><polyline class="da" points="820,256 820,88" marker-end="url(#wide-st-da)"/><text class="dl" x="820" y="74" text-anchor="middle">Audio</text><text class="ds" x="829" y="140" text-anchor="start">RCA</text><polyline class="da" points="1026,256 1026,88" marker-end="url(#wide-st-da)" marker-start="url(#wide-st-da)"/><text class="dl" x="1026" y="74" text-anchor="middle">Serial COM1</text><text class="ds" x="1035" y="140" text-anchor="start">DB9</text><polyline class="da" points="1140,256 1140,88" marker-end="url(#wide-st-da)" marker-start="url(#wide-st-da)"/><text class="dl" x="1140" y="74" text-anchor="middle">Serial USB</text><text class="ds" x="1149" y="140" text-anchor="start">USB</text><polyline class="dp" points="402,506 402,397" marker-end="url(#wide-st-dp)"/><polyline class="dp" points="232,506 232,387 354,387" marker-end="url(#wide-st-dp)"/><text class="dl" x="232" y="528" text-anchor="middle">Raw DC, 7.5–18 V</text><text class="dl" x="402" y="528" text-anchor="middle">Raw DC, 7.5–18 V</text><text class="ds" x="318.0" y="488" text-anchor="middle">or</text></svg><svg class="tall" viewBox="0 0 380 1000" role="img" aria-label="Block diagram of the stacked machine: programmer, CPU, video and I/O boards joined by one bus. The CPU board makes 5 volts for the others."><defs><marker id="tall-st-da" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mda" d="M0 0L10 5L0 10z"/></marker><marker id="tall-st-dp" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mdp" d="M0 0L10 5L0 10z"/></marker></defs><rect class="db" x="10" y="70" width="360" height="172" rx="10"/><text class="dn" x="358" y="231" text-anchor="end">I/O board</text><rect class="dc" x="150" y="84" width="92" height="36" rx="3"/><text class="dt" x="196.0" y="107.0" text-anchor="middle">UART</text><rect class="dc" x="268" y="84" width="92" height="36" rx="3"/><text class="dt" x="314.0" y="107.0" text-anchor="middle">FTDI</text><polygon class="dr" points="242.0,102.0 252.8,91.5 252.8,96.0 257.2,96.0 257.2,91.5 268.0,102.0 257.2,112.5 257.2,108.0 252.8,108.0 252.8,112.5"/><rect class="dc" x="150" y="128" width="210" height="34" rx="3"/><text class="dt" x="255.0" y="150.0" text-anchor="middle">Parallel I/O</text><rect class="dc" x="150" y="170" width="210" height="34" rx="3"/><text class="dt" x="255.0" y="192.0" text-anchor="middle">Counter / timer</text><polyline class="da" points="196,84 196,34" marker-end="url(#tall-st-da)" marker-start="url(#tall-st-da)"/><text class="dl" x="196" y="24" text-anchor="middle">Serial COM1</text><text class="ds" x="204" y="58" text-anchor="start">DB9</text><polyline class="da" points="314,84 314,34" marker-end="url(#tall-st-da)" marker-start="url(#tall-st-da)"/><text class="dl" x="314" y="24" text-anchor="middle">Serial USB</text><text class="ds" x="322" y="58" text-anchor="start">USB</text><rect class="db" x="10" y="320" width="360" height="120" rx="10"/><text class="dn" x="358" y="429" text-anchor="end">Video board</text><rect class="dc" x="150" y="334" width="92" height="36" rx="3"/><text class="dt" x="196.0" y="357.0" text-anchor="middle">VDP</text><rect class="dc" x="268" y="334" width="92" height="36" rx="3"/><text class="dt" x="314.0" y="357.0" text-anchor="middle">Sound</text><rect class="dc" x="150" y="378" width="92" height="34" rx="3"/><text class="dt" x="196.0" y="400.0" text-anchor="middle">VRAM</text><polyline class="da" points="196,334 196,272" marker-end="url(#tall-st-da)"/><text class="dl" x="196" y="263" text-anchor="middle">YPbPr video</text><text class="ds" x="204" y="300" text-anchor="start">RCA</text><polyline class="da" points="314,334 314,272" marker-end="url(#tall-st-da)"/><text class="dl" x="314" y="263" text-anchor="middle">Audio</text><text class="ds" x="322" y="300" text-anchor="start">RCA</text><rect class="db" x="10" y="534" width="360" height="132" rx="10"/><text class="dn" x="358" y="655" text-anchor="end"></text><text class="dn" x="202" y="647" text-anchor="start">CPU board</text><rect class="dc" x="24" y="548" width="92" height="36" rx="3"/><text class="dt" x="70.0" y="571.0" text-anchor="middle">CPU</text><rect class="dc" x="134" y="548" width="92" height="36" rx="3"/><text class="dt" x="180.0" y="571.0" text-anchor="middle">PIO</text><rect class="dc" x="264" y="548" width="96" height="78" rx="3"/><text class="dt" x="312.0" y="592.0" text-anchor="middle">5 V DC</text><rect class="dc" x="24" y="592" width="92" height="34" rx="3"/><text class="dt" x="70.0" y="614.0" text-anchor="middle">ROM</text><rect class="dc" x="134" y="592" width="92" height="34" rx="3"/><text class="dt" x="180.0" y="614.0" text-anchor="middle">RAM</text><polyline class="dp" points="312,500 312,548" marker-end="url(#tall-st-dp)"/><text class="dl" x="312" y="478" text-anchor="middle">Raw DC</text><text class="ds" x="312" y="494" text-anchor="middle">7.5–18 V</text><rect class="db" x="10" y="750" width="360" height="124" rx="10"/><text class="dn" x="358" y="863" text-anchor="end"></text><text class="dn" x="326" y="863" text-anchor="end">Programmer board</text><rect class="dc" x="24" y="766" width="202" height="76" rx="3"/><text class="dt" x="125.0" y="799.5" text-anchor="middle">In-circuit</text><text class="dt" x="125.0" y="818.5" text-anchor="middle">parallel programmer</text><polygon class="dr" points="70.0,626.0 52.5,644.0 60.0,644.0 60.0,748.0 52.5,748.0 70.0,766.0 87.5,748.0 80.0,748.0 80.0,644.0 87.5,644.0"/><polyline class="dp" points="286,626 286,790 227,790" marker-end="url(#tall-st-dp)"/><text class="ds" x="278" y="732" text-anchor="end">5 V</text><polyline class="dp" points="336,960 336,627" marker-end="url(#tall-st-dp)"/><text class="dl" x="328" y="945" text-anchor="end">or raw DC, 7.5–18 V</text><g class="dpc" transform="translate(70 918)"><rect x="0" y="0" width="62" height="42" rx="4"/><rect class="scr" x="5" y="5" width="52" height="32"/><path d="M24 42h14l4 9H20z"/><rect x="70" y="0" width="22" height="51" rx="3"/></g><polyline class="da" points="116,912 116,842" marker-end="url(#tall-st-da)" marker-start="url(#tall-st-da)"/><text class="ds" x="126" y="898" text-anchor="start">USB</text><polygon class="dbus" points="56.0,234.0 31.5,252.0 42.0,252.0 42.0,310.0 31.5,310.0 56.0,328.0 80.5,310.0 70.0,310.0 70.0,252.0 80.5,252.0"/><text class="dbt" x="56.0" y="281.0" text-anchor="middle" dominant-baseline="central" transform="rotate(-90 56.0 281.0)">BUS</text><polygon class="dbus" points="56.0,432.0 31.5,450.0 42.0,450.0 42.0,524.0 31.5,524.0 56.0,542.0 80.5,524.0 70.0,524.0 70.0,450.0 80.5,450.0"/><text class="dbt" x="56.0" y="487.0" text-anchor="middle" dominant-baseline="central" transform="rotate(-90 56.0 487.0)">BUS</text><polygon class="dbus" points="180.0,658.0 155.5,676.0 166.0,676.0 166.0,740.0 155.5,740.0 180.0,758.0 204.5,740.0 194.0,740.0 194.0,676.0 204.5,676.0"/><text class="dbt" x="180.0" y="708.0" text-anchor="middle" dominant-baseline="central" transform="rotate(-90 180.0 708.0)">BUS</text><polyline class="dp" points="112,320 112,242" marker-end="url(#tall-st-dp)"/><text class="ds" x="120" y="280" text-anchor="start">5 V</text><polyline class="dp" points="112,534 112,440" marker-end="url(#tall-st-dp)"/><text class="ds" x="120" y="492" text-anchor="start">5 V</text></svg><button type="button" class="zoom" data-diagram="d-stacked" aria-label="Open Stacked assembly full screen">⤢ Full screen</button></figure></div><div class="pane p2"><figure class="diagram" id="d-flat" data-title="Development assembly"><svg class="wide" viewBox="0 0 1240 680" role="img" aria-label="Block diagram of the development assembly: CPU, I/O and video boards side by side on the programmer, which acts as a backplane."><defs><marker id="wide-fl-da" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mda" d="M0 0L10 5L0 10z"/></marker><marker id="wide-fl-dp" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mdp" d="M0 0L10 5L0 10z"/></marker></defs><rect class="db" x="200" y="120" width="320" height="232" rx="10"/><text class="dn" x="508" y="341" text-anchor="end">CPU board</text><rect class="db" x="545" y="120" width="320" height="232" rx="10"/><text class="dn" x="557" y="341" text-anchor="start">I/O board</text><rect class="db" x="890" y="120" width="320" height="232" rx="10"/><text class="dn" x="902" y="341" text-anchor="start">Video board</text><rect class="db" x="200" y="450" width="1010" height="200" rx="10"/><text class="dn" x="216" y="636" text-anchor="start">Programmer board</text><rect class="dc" x="220" y="144" width="102" height="42" rx="3"/><text class="dt" x="271.0" y="170.0" text-anchor="middle">CPU</text><rect class="dc" x="334" y="144" width="102" height="42" rx="3"/><text class="dt" x="385.0" y="170.0" text-anchor="middle">PIO</text><rect class="dc" x="220" y="198" width="102" height="42" rx="3"/><text class="dt" x="271.0" y="224.0" text-anchor="middle">RAM</text><rect class="dc" x="334" y="198" width="102" height="42" rx="3"/><text class="dt" x="385.0" y="224.0" text-anchor="middle">ROM</text><rect class="dc" x="220" y="252" width="102" height="42" rx="3"/><text class="dt" x="271.0" y="278.0" text-anchor="middle">5 V DC</text><rect class="dc" x="565" y="144" width="102" height="42" rx="3"/><text class="dt" x="616.0" y="170.0" text-anchor="middle">UART</text><rect class="dc" x="703" y="144" width="102" height="42" rx="3"/><text class="dt" x="754.0" y="170.0" text-anchor="middle">FTDI</text><polygon class="dr" points="667.0,165.0 682.0,152.8 682.0,158.0 688.0,158.0 688.0,152.8 703.0,165.0 688.0,177.2 688.0,172.0 682.0,172.0 682.0,177.2"/><rect class="dc" x="565" y="198" width="240" height="42" rx="3"/><text class="dt" x="685.0" y="224.0" text-anchor="middle">Parallel I/O</text><rect class="dc" x="565" y="252" width="240" height="42" rx="3"/><text class="dt" x="685.0" y="278.0" text-anchor="middle">Counter / timer</text><rect class="dc" x="910" y="144" width="102" height="42" rx="3"/><text class="dt" x="961.0" y="170.0" text-anchor="middle">VDP</text><rect class="dc" x="1048" y="144" width="102" height="42" rx="3"/><text class="dt" x="1099.0" y="170.0" text-anchor="middle">Sound</text><rect class="dc" x="910" y="198" width="102" height="42" rx="3"/><text class="dt" x="961.0" y="224.0" text-anchor="middle">VRAM</text><polygon class="dbus" points="486.0,348.0 463.2,366.0 473.0,366.0 473.0,436.0 463.2,436.0 486.0,454.0 508.8,436.0 499.0,436.0 499.0,366.0 508.8,366.0"/><text class="dbt" x="486.0" y="401.0" text-anchor="middle" dominant-baseline="central" transform="rotate(-90 486.0 401.0)">BUS</text><polygon class="dbus" points="831.0,348.0 808.2,366.0 818.0,366.0 818.0,436.0 808.2,436.0 831.0,454.0 853.8,436.0 844.0,436.0 844.0,366.0 853.8,366.0"/><text class="dbt" x="831.0" y="401.0" text-anchor="middle" dominant-baseline="central" transform="rotate(-90 831.0 401.0)">BUS</text><polygon class="dbus" points="1176.0,348.0 1153.2,366.0 1163.0,366.0 1163.0,436.0 1153.2,436.0 1176.0,454.0 1198.8,436.0 1189.0,436.0 1189.0,366.0 1198.8,366.0"/><text class="dbt" x="1176.0" y="401.0" text-anchor="middle" dominant-baseline="central" transform="rotate(-90 1176.0 401.0)">BUS</text><rect class="dc" x="228" y="528" width="250" height="78" rx="3"/><text class="dt" x="353.0" y="562.5" text-anchor="middle">In-circuit</text><text class="dt" x="353.0" y="581.5" text-anchor="middle">parallel programmer</text><polygon class="dr" points="385.0,240.0 364.0,258.0 373.0,258.0 373.0,510.0 364.0,510.0 385.0,528.0 406.0,510.0 397.0,510.0 397.0,258.0 406.0,258.0"/><polyline class="dp" points="60,273 220,273" marker-end="url(#wide-fl-dp)"/><text class="dl" x="66" y="240" text-anchor="start">Raw DC</text><text class="ds" x="66" y="258" text-anchor="start">7.5–18 V</text><polyline class="dp" points="60,484 252,484 252,295" marker-end="url(#wide-fl-dp)"/><text class="dl" x="66" y="452" text-anchor="start">Raw DC</text><text class="ds" x="66" y="470" text-anchor="start">7.5–18 V</text><text class="ds" x="66" y="372" text-anchor="start">or</text><polyline class="dp" points="300,294 300,528" marker-end="url(#wide-fl-dp)"/><text class="ds" x="308" y="408" text-anchor="start">5 V</text><polyline class="dp" points="300,502 745,502 745,352" marker-end="url(#wide-fl-dp)"/><polyline class="dp" points="745,502 1090,502 1090,352" marker-end="url(#wide-fl-dp)"/><text class="ds" x="753" y="408" text-anchor="start">5 V</text><text class="ds" x="1098" y="408" text-anchor="start">5 V</text><g class="dpc" transform="translate(30 544)"><rect x="0" y="0" width="62" height="42" rx="4"/><rect class="scr" x="5" y="5" width="52" height="32"/><path d="M24 42h14l4 9H20z"/><rect x="70" y="0" width="22" height="51" rx="3"/></g><polyline class="da" points="128,568 228,568" marker-end="url(#wide-fl-da)" marker-start="url(#wide-fl-da)"/><text class="ds" x="166" y="560" text-anchor="middle">USB</text><polyline class="da" points="616,144 616,44" marker-end="url(#wide-fl-da)" marker-start="url(#wide-fl-da)"/><text class="dl" x="616" y="32" text-anchor="middle">Serial COM1</text><text class="ds" x="625" y="92" text-anchor="start">DB9</text><polyline class="da" points="754,144 754,44" marker-end="url(#wide-fl-da)" marker-start="url(#wide-fl-da)"/><text class="dl" x="754" y="32" text-anchor="middle">Serial USB</text><text class="ds" x="763" y="92" text-anchor="start">USB</text><polyline class="da" points="961,144 961,44" marker-end="url(#wide-fl-da)"/><text class="dl" x="961" y="32" text-anchor="middle">YPbPr video</text><text class="ds" x="970" y="92" text-anchor="start">RCA</text><polyline class="da" points="1099,144 1099,44" marker-end="url(#wide-fl-da)"/><text class="dl" x="1099" y="32" text-anchor="middle">Audio</text><text class="ds" x="1108" y="92" text-anchor="start">RCA</text></svg><svg class="tall" viewBox="0 0 380 960" role="img" aria-label="Block diagram of the development assembly: CPU, I/O and video boards side by side on the programmer, which acts as a backplane."><defs><marker id="tall-fl-da" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mda" d="M0 0L10 5L0 10z"/></marker><marker id="tall-fl-dp" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mdp" d="M0 0L10 5L0 10z"/></marker></defs><rect class="db" x="10" y="60" width="112" height="770" rx="10"/><text class="dn" x="40" y="600" text-anchor="start" transform="rotate(-90 40 600)">Programmer board</text><rect class="db" x="186" y="80" width="184" height="150" rx="10"/><text class="dn" x="358" y="219" text-anchor="end">Video board</text><rect class="dc" x="198" y="94" width="76" height="36" rx="3"/><text class="dt" x="236.0" y="117.0" text-anchor="middle">VDP</text><rect class="dc" x="282" y="94" width="76" height="36" rx="3"/><text class="dt" x="320.0" y="117.0" text-anchor="middle">Sound</text><rect class="dc" x="198" y="138" width="76" height="36" rx="3"/><text class="dt" x="236.0" y="161.0" text-anchor="middle">VRAM</text><polyline class="da" points="236,94 236,36" marker-end="url(#tall-fl-da)"/><text class="dl" x="236" y="26" text-anchor="middle">Video</text><text class="ds" x="243" y="66" text-anchor="start">RCA</text><polyline class="da" points="320,94 320,36" marker-end="url(#tall-fl-da)"/><text class="dl" x="320" y="26" text-anchor="middle">Audio</text><text class="ds" x="327" y="66" text-anchor="start">RCA</text><rect class="db" x="186" y="350" width="184" height="176" rx="10"/><text class="dn" x="358" y="515" text-anchor="end">I/O board</text><rect class="dc" x="198" y="364" width="70" height="36" rx="3"/><text class="dt" x="233.0" y="387.0" text-anchor="middle">UART</text><rect class="dc" x="288" y="364" width="70" height="36" rx="3"/><text class="dt" x="323.0" y="387.0" text-anchor="middle">FTDI</text><polygon class="dr" points="268.0,382.0 276.3,373.2 276.3,377.0 279.7,377.0 279.7,373.2 288.0,382.0 279.7,390.8 279.7,387.0 276.3,387.0 276.3,390.8"/><rect class="dc" x="198" y="408" width="160" height="36" rx="3"/><text class="dt" x="278.0" y="431.0" text-anchor="middle">Parallel I/O</text><rect class="dc" x="198" y="452" width="160" height="36" rx="3"/><text class="dt" x="278.0" y="475.0" text-anchor="middle">Counter / timer</text><polyline class="da" points="233,364 233,296" marker-end="url(#tall-fl-da)" marker-start="url(#tall-fl-da)"/><text class="dl" x="233" y="285" text-anchor="middle">COM1</text><text class="ds" x="240" y="334" text-anchor="start">DB9</text><polyline class="da" points="323,364 323,296" marker-end="url(#tall-fl-da)" marker-start="url(#tall-fl-da)"/><text class="dl" x="323" y="285" text-anchor="middle">USB</text><text class="ds" x="330" y="334" text-anchor="start">USB</text><rect class="db" x="186" y="620" width="184" height="190" rx="10"/><text class="dn" x="358" y="799" text-anchor="end">CPU board</text><rect class="dc" x="198" y="634" width="76" height="36" rx="3"/><text class="dt" x="236.0" y="657.0" text-anchor="middle">5 V DC</text><rect class="dc" x="282" y="634" width="76" height="36" rx="3"/><text class="dt" x="320.0" y="657.0" text-anchor="middle">CPU</text><rect class="dc" x="198" y="720" width="76" height="36" rx="3"/><text class="dt" x="236.0" y="743.0" text-anchor="middle">ROM</text><rect class="dc" x="282" y="678" width="76" height="36" rx="3"/><text class="dt" x="320.0" y="701.0" text-anchor="middle">RAM</text><rect class="dc" x="282" y="720" width="76" height="36" rx="3"/><text class="dt" x="320.0" y="743.0" text-anchor="middle">PIO</text><polyline class="dp" points="236,584 236,634" marker-end="url(#tall-fl-dp)"/><text class="dl" x="192" y="560" text-anchor="start">Raw DC</text><text class="ds" x="192" y="577" text-anchor="start">7.5–18 V</text><polygon class="dbus" points="116.0,198.0 134.0,178.8 134.0,187.0 174.0,187.0 174.0,178.8 192.0,198.0 174.0,217.2 174.0,209.0 134.0,209.0 134.0,217.2"/><text class="dbt" x="154.0" y="203.0" text-anchor="middle">BUS</text><polygon class="dbus" points="116.0,490.0 134.0,470.8 134.0,479.0 174.0,479.0 174.0,470.8 192.0,490.0 174.0,509.2 174.0,501.0 134.0,501.0 134.0,509.2"/><text class="dbt" x="154.0" y="495.0" text-anchor="middle">BUS</text><polygon class="dbus" points="116.0,786.0 134.0,766.8 134.0,775.0 174.0,775.0 174.0,766.8 192.0,786.0 174.0,805.2 174.0,797.0 134.0,797.0 134.0,805.2"/><text class="dbt" x="154.0" y="791.0" text-anchor="middle">BUS</text><rect class="dc" x="16" y="642" width="82" height="124" rx="3"/><text class="dt" x="57" y="680" text-anchor="middle">In-circuit</text><text class="dt" x="57" y="700" text-anchor="middle">parallel</text><text class="dt" x="57" y="720" text-anchor="middle">program-</text><text class="dt" x="57" y="740" text-anchor="middle">mer</text><polygon class="dr" points="98.0,738.0 116.0,722.2 116.0,729.0 180.0,729.0 180.0,722.2 198.0,738.0 180.0,753.8 180.0,747.0 116.0,747.0 116.0,753.8"/><polyline class="dp" points="198,654 99,654" marker-end="url(#tall-fl-dp)"/><text class="ds" x="148" y="648" text-anchor="middle">5 V</text><polyline class="dp" points="80,642 80,430 186,430" marker-end="url(#tall-fl-dp)"/><polyline class="dp" points="80,430 80,150 186,150" marker-end="url(#tall-fl-dp)"/><text class="ds" x="152" y="423" text-anchor="middle">5 V</text><text class="ds" x="152" y="143" text-anchor="middle">5 V</text><g class="dpc" transform="translate(8 890)"><rect x="0" y="0" width="62" height="42" rx="4"/><rect class="scr" x="5" y="5" width="52" height="32"/><path d="M24 42h14l4 9H20z"/><rect x="70" y="0" width="22" height="51" rx="3"/></g><polyline class="da" points="50,884 50,766" marker-end="url(#tall-fl-da)" marker-start="url(#tall-fl-da)"/><text class="ds" x="58" y="866" text-anchor="start">USB</text><polyline class="dp" points="110,936 110,692 216,692 216,671" marker-end="url(#tall-fl-dp)"/><text class="dl" x="124" y="910" text-anchor="start">or raw DC, 7.5–18 V</text><text class="ds" x="124" y="928" text-anchor="start">through the programmer</text></svg><button type="button" class="zoom" data-diagram="d-flat" aria-label="Open Development assembly full screen">⤢ Full screen</button></figure></div></div><!--/diagrams-->
+  <p style="margin-top:24px"><a class="more" href="design.html">Every block diagram, the bus and the upload flow</a></p>
+</div></section>
+
+<section class="sec rule" id="build"><div class="wrap">
+  <h2>Build your machine</h2>
+  <p class="soft">Choose a processor, then add boards. These are my real board designs, all drawn from the same angle.</p>
+  <form class="builder" id="builder">
+    <div>
+      <fieldset class="seg"><legend>Processor</legend><label class="chip"><input type="radio" name="cpu" value="z80" checked><span>Z80</span></label><label class="chip"><input type="radio" name="cpu" value="6502"><span>6502</span></label><label class="chip"><input type="radio" name="cpu" value="mtx"><span>MTX512</span></label></fieldset>
+      <fieldset class="seg"><legend>Add boards</legend><label class="chip"><input type="checkbox" name="vdp" checked><span>Video + sound</span></label><label class="chip"><input type="checkbox" name="io1" checked><span>I/O</span></label><label class="chip"><input type="checkbox" name="io2"><span>LCD</span></label><label class="chip"><input type="checkbox" name="pr1"><span>Programmer</span></label></fieldset>
+      <p id="need" hidden>The MTX needs both the video and I/O boards. The video board even supplies its clock.</p>
+      <label class="lab" for="gap">Pull the stack apart</label><div><input type="range" id="gap" name="gap" min="11.6" max="34" step="0.2" value="11.6"></div>
+      <dl class="readout" id="readout" aria-live="polite"></dl>
+    </div>
+    <div class="stagebox"><p class="mname" id="mname" aria-hidden="true"></p><div class="stack" id="stage" style="--n:3"><div class="deck"></div></div></div>
+  </form>
+</div></section>
+
+<section class="sec rule" id="bus"><div class="wrap">
+  <h2>Everything passes through the corners</h2>
+  <p class="soft">Eight 8-way sockets carry address, data, control and power from the bottom of the stack to the top. Pick a group.</p>
+  <div class="bus">
+    <div class="board"><img src="assets/img/top-z80.webp" width="1042" height="1064" alt="Z80 board from above, showing the corner connectors">
+      <button type="button" data-g="ADDR" class="tl">ADDR</button><button type="button" data-g="ADDR2" class="tl2">ADDR2</button>
+      <button type="button" data-g="SPEC" class="tr2">SPEC</button><button type="button" data-g="PROG" class="tr">PROG</button>
+      <button type="button" data-g="DATA" class="bl">DATA</button><button type="button" data-g="AUX" class="bl2">AUX</button>
+      <button type="button" data-g="CTRL" class="br2">CTRL</button><button type="button" data-g="MTX" class="br">MTX</button>
+    </div>
+    <div aria-live="polite"><h3 id="busname">CTRL</h3><p id="busrole" class="soft"></p><ol class="pins" id="pins"></ol></div>
+  </div>
+</div></section>
+
+<section class="sec rule" id="boards"><div class="wrap">
+  <h2>The boards, in depth</h2>
+  <p class="soft">Each has a model you can turn in your hand, a parts map, its problems and fixes, schematics and full design notes.</p>
+  <div class="cards">
+    <a class="card" href="boards/z80.html"><img src="assets/img/iso-z80-sm.webp" width="640" height="418" alt=""><b>Z80 SBC</b><span>A whole computer on one board</span></a>
+    <a class="card" href="boards/6502.html"><img src="assets/img/iso-6502-sm.webp" width="640" height="418" alt=""><b>6502 SBC</b><span>The other processor, same bus</span></a>
+    <a class="card" href="boards/mtx.html"><img src="assets/img/iso-mtx-sm.webp" width="640" height="418" alt=""><b>MTX512 CPU</b><span>Memotech paging, rebuilt</span></a>
+    <a class="card" href="boards/io1.html"><img src="assets/img/iso-io1-sm.webp" width="640" height="418" alt=""><b>I/O board</b><span>Serial, timers, keyboards</span></a>
+    <a class="card" href="boards/vdp.html"><img src="assets/img/iso-vdp-sm.webp" width="640" height="418" alt=""><b>Video + sound</b><span>TMS99xx and SN76489</span></a>
+    <a class="card" href="boards/io2.html"><img src="assets/img/iso-io2-sm.webp" width="640" height="418" alt=""><b>I/O 2 with LCD</b><span>A front panel for the stack</span></a>
+    <a class="card" href="boards/pr1.html"><img src="assets/img/iso-pr1-sm.webp" width="640" height="418" alt=""><b>Fast programmer</b><span>Page-mode ROM burning</span></a>
+    <a class="card" href="boards/pr2.html"><img src="assets/img/iso-pr2-sm.webp" width="640" height="418" alt=""><b>3-pad programmer</b><span>The first one, and a test bench</span></a>
+  </div>
+  <h3 style="margin-top:36px">Straight to a schematic</h3>
+  <ul class="jump"><li><a href="assets/docs/V102-Z80-1-schematic.pdf" data-sheets="2" data-id="z80" data-title="Z80 schematic" data-labels="Main sheet|Connectors">Z80</a></li><li><a href="assets/docs/V102-6502-2-schematic.pdf" data-sheets="2" data-id="6502" data-title="6502 schematic" data-labels="Main sheet|Connectors">6502</a></li><li><a href="assets/docs/V102-MTX-2-schematic.pdf" data-sheets="1" data-id="mtx" data-title="MTX512 schematic" data-labels="Main sheet|Connectors">MTX512</a></li><li><a href="assets/docs/V102-IO1-0-schematic.pdf" data-sheets="1" data-id="io1" data-title="I/O schematic" data-labels="Main sheet|Connectors">I/O</a></li><li><a href="assets/docs/V102-VDP-1-schematic.pdf" data-sheets="2" data-id="vdp" data-title="Video schematic" data-labels="Main sheet|Connectors">Video</a></li><li><a href="assets/docs/V102-IO2-0-schematic.pdf" data-sheets="1" data-id="io2" data-title="LCD schematic" data-labels="Main sheet|Connectors">LCD</a></li><li><a href="assets/docs/V102-PR1-2-schematic.pdf" data-sheets="1" data-id="pr1" data-title="Fast prog. schematic" data-labels="Main sheet|Connectors">Fast prog.</a></li><li><a href="assets/docs/V102-PR2-0-schematic.pdf" data-sheets="2" data-id="pr2" data-title="3-pad prog. schematic" data-labels="Main sheet|v102 bus">3-pad prog.</a></li></ul>
+</div></section>
+</div>
+
+<div class="paper"><section class="sec"><div class="wrap">
+  <h2>What I'd do differently</h2>
+  <div class="two">
+    <p>The boards are built, tested and in use. Documenting them properly turned up faults worth fixing: memories that drive the bus during writes, missing pull-ups while the programmer holds it, too little decoupling.</p>
+    <p>Each board page lists its own. They feed a planned four-layer revision with ground planes in the middle of the board.</p>
+  </div>
+  <div class="ph"><span class="tag">Scope capture: signal-integrity.png</span><b>Evidence from the bench</b><span>An oscilloscope trace of a 6502 write reaching a Zilog part, or of noise on the two-layer bus.</span></div>
+  <h2 id="thanks" style="margin-top:72px">Thanks</h2>
+  <div class="two">
+    <p><b>Ben Eater</b>, whose 6502 videos started all of this.</p>
+    <p><b>Martin Allcorn</b>, who supplied the original MTX ROM dump and a partial disassembly.</p>
+    <p><b>Dave Stevenson, Andy Key, Claus Bækkel, Tony Brewer, Bill Brendling</b> and everyone else who keeps the Memotech alive and documented.</p>
+    <p><b>Memotech's engineers</b>, who designed a computer worth rebuilding forty years later.</p>
+  </div>
+  <p><a class="more" href="credits.html">Full credits, sources and licences</a></p>
+</div></section></div>
+</main>
+
+<footer><div class="wrap"><div class="bars"></div><p>NOVAZ80, by NOVA Embedded Solutions. A hobby project, built just for fun.</p><p>Not affiliated with Memotech or Ben Eater. Game and BIOS ROMs are not published here. <a href="credits.html">Credits</a> · <a href="https://github.com/nigelchurch/novaz80">Project on GitHub</a></p></div></footer>
+<script src="assets/js/main.js" defer></script>
+<script src="assets/js/viewer.js" defer></script>
+<script src="assets/js/swipe.js" defer></script>
 </body>
 </html>
