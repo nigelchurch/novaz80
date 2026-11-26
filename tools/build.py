@@ -73,7 +73,9 @@ def page(title, desc, body):
 <title>{E(title)} · NOVAZ80</title>
 <meta name="description" content="{E(desc)}">
 <meta name="theme-color" content="#0b0b0d">
-<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="icon" type="image/png" sizes="48x48" href="../assets/img/favicon.png">
+<link rel="apple-touch-icon" href="../assets/img/apple-touch-icon.png">
+<link rel="manifest" href="../site.webmanifest">
 <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>

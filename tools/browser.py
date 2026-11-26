@@ -325,6 +325,20 @@ def main():
         ok("failed 3D keeps the picture", pg.is_visible(".model img"))
         del bad[n_bad:]
         pg.unroute("**/*.glb")
+        # home-screen icon
+        cur[0] = "icon"
+        pg.goto(base + "index.html")
+        man = cdp.send("Page.getAppManifest")
+        ok(f"manifest has no errors {man.get('errors')}", man.get("url") and not man.get("errors"))
+        import json as _j
+        icons = _j.loads(man["data"])["icons"]
+        for ic in icons:
+            r = ctx.request.get(base + ic["src"])
+            ok(f"icon {ic['src']} loads", r.ok and r.headers["content-type"] == "image/png")
+        ok("192 and 512 icons, plain and maskable", {(i["sizes"], i["purpose"]) for i in icons} >= {("192x192", "any"), ("512x512", "any"), ("192x192", "maskable"), ("512x512", "maskable")})
+        for u in ("boards/z80.html", "design.html"):
+            pg.goto(base + u)
+            ok(f"{u} links the manifest and icons", ctx.request.get(pg.eval_on_selector("link[rel=manifest]", "e=>e.href")).ok and ctx.request.get(pg.eval_on_selector("link[rel=apple-touch-icon]", "e=>e.href")).ok)
         # no-JS and reduced motion
         c2 = p.chromium.launch(channel="msedge")
         q = c2.new_context(java_script_enabled=False).new_page()
