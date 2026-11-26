@@ -56,11 +56,24 @@
   <div class="when">The spark<small>Ben Eater's 6502</small></div>
   <div>
     <h2>It started with Ben Eater.</h2>
-    <p class="lede">Ben Eater's videos build a working 6502 computer on breadboards, one wire and one reason at a time. Without them there would be no NOVAZ80.</p>
-    <p>My first board was his breadboard 6502 design turned into a PCB. The teaching and the original design are his. If you have not seen them, start there: <a class="more" href="https://eater.net/6502">eater.net/6502</a>.</p>
+    <p class="lede">Ben Eater's videos build a working 6502 computer on breadboards, one wire and one reason at a time. Without them there would be no NOVAZ80. The teaching and the original design are his: <a class="more" href="https://eater.net/6502">eater.net/6502</a>.</p>
+    <div class="two">
+      <p>I skipped the breadboard and went straight to a PCB. I know myself: one miswired jumper and I'd have lost patience debugging it before I'd even started.</p>
+      <p>Debugging is part of the fun. There's no sense of achievement without a few hurdles. But that early on, a wall of wires would have been too big a setback.</p>
+    </div>
+    <h3 style="margin-top:28px">From a copy to a family</h3>
+    <ol class="road">
+      <li><b>6502 PCB</b><span>Heavily based on Ben Eater's design</span></li>
+      <li><b>6502 PCB with a ZIF socket</b><span>So the ROM could come out quickly</span></li>
+      <li><b>Z80 single-board computer</b><span>Also with a ZIF socket for the ROM</span></li>
+      <li><b>Z80, programmed in place</b><span>The ROM no longer had to come out</span></li>
+      <li><b>v001, the first modular set</b><span>Boards had fixed places, and the programmer sat outside the stack</span></li>
+      <li><b>v101</b><span>The programmer joins the assembly</span></li>
+      <li><b>v102</b><span>Every board carries the whole bus, in any order</span></li>
+    </ol>
     <div class="phs">
-      <div class="ph"><span class="tag">Live photo: breadboard-6502.jpg</span><b>The breadboard, if one was built</b><span>Wires and all. The messier it is, the better the before-and-after.</span></div>
-      <div class="ph"><span class="tag">Live photo: first-6502-pcb.jpg</span><b>The first 6502 PCB</b><span>With the ZIF socket showing.</span></div>
+      <div class="ph"><span class="tag">Live photo: first-6502-pcb.jpg</span><b>The first 6502 PCB</b><span>The board based on Ben Eater's design.</span></div>
+      <div class="ph"><span class="tag">Live photo: early-boards.jpg</span><b>The early boards together</b><span>ZIF-socket 6502, Z80, the programmable Z80 and v001, side by side.</span></div>
     </div>
   </div>
 </div></section>
@@ -70,8 +83,8 @@
   <div>
     <h2>The ROM spent more time out of the board than in it.</h2>
     <div class="two">
-      <p>The point was to learn to code, and that takes many tries. Each one meant pulling the ROM, programming it and pushing it back. A zero-insertion-force socket helped, but not enough.</p>
-      <p>The same approach went into a Z80 board, using the processor inside the MTX. It was a complete computer. Changing its program was still slow.</p>
+      <p>The point was to learn to code, and that takes many tries. Each one meant pulling the ROM, programming it and pushing it back. A zero-insertion-force (ZIF) socket on the second 6502 board helped, but not enough.</p>
+      <p>The same approach went into a Z80 board, using the processor inside the MTX. It was a complete computer, but changing its program was still slow. The next version could be programmed without taking the ROM out.</p>
     </div>
     <p><a class="more" href="boards/z80.html">Inside the Z80 SBC</a></p>
   </div>
@@ -122,6 +135,7 @@ Process complete (duration 0:00:17.703169)</pre></div>
     <div class="two">
       <p>JLCPCB's best price covers boards up to 100 × 100 mm. That limit became the standard. Smaller boards also meant each design could be proved before the next began.</p>
       <p>Every board carries the whole bus through its four corners, so stacking order does not matter electrically. It also buried the signals I wanted to probe. The answer was a flat version of the same machine.</p>
+      <p>It took three goes. In v001 each board had a fixed place and the programmer sat outside the stack. v101 brought the programmer in. v102 put every bus line on every board.</p>
     </div>
     <div class="pair">
       <figure><img src="assets/img/stacked.webp" width="1600" height="960" alt="Boards stacked in a tower"><figcaption>Stacked: the compact machine.</figcaption></figure>

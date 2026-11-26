@@ -295,9 +295,82 @@ Notes:
 
 ---
 
-## 7. PLD
+## 7. PLD (IC6, ATF20V8B) — pin use
 
-*The PLD source is being held back until its original authors are credited.*
+### 7.1 Pins
+
+| Pin | Signal | Dir | Notes |
+|---|---|---|---|
+| 1 | A13 | in | |
+| 2 | A14 | in | |
+| 3 | A15 | in | |
+| 4 | MREQB | in | |
+| 5–8 | P0–P3 | in | RAM page |
+| 9 | R0 | in | |
+| 10 | ROMCSX | in | Programmer, active high. **No pull-down** |
+| 11 | — | in | Spare, unconnected |
+| 13 | R1 | in | |
+| 14 | R2 | in | |
+| 15 | ROMA13 | out, active high | Main ROM A13 |
+| 16 | ROMA14 | out, active high | Main ROM A14 |
+| 17 | RAM | out | RAM /CS |
+| 18 | ROM7 | out | PROG pin 2 (off-board) |
+| 19 | ROMX | out | ROMx /CS via J3 |
+| 20 | ROM | out | Main ROM /CS |
+| 21 | SELECT | in (I/O pin used as input) | SW3 |
+| 22 | RAM2 | out | RAM2 /CS |
+| 23 | CPM | in | |
+
+`/RD`, `/WR`, `/IORQ` and `/M1` aren't PLD inputs. Pin 11 is the only spare.
+
+### 7.2 Equations
+
+WinCUPL, `Device g20v8a`; the `.jed` is simple mode (`g20v8as`).
+```
+ROM6    =  R2 & R1 & !R0 ;
+
+ROMA13  = (!ROMCSX & A13 & !R1)  #  (ROMCSX & A13) ;
+ROMA14  = (!ROMCSX & A13 &  R0)  #  (ROMCSX & A14) ;
+
+!ROM    = (ADDRESS:[0000..1fff]              & !CPM & !MREQB)
+        # (ADDRESS:[2000..3fff] & ROMNO:0    & !CPM & !MREQB)
+        # (ADDRESS:[2000..3fff] & ROMNO:1    & !CPM & !MREQB)
+        # (ADDRESS:[2000..3fff] & ROMNO:3    & !CPM & !MREQB)
+        # (ROMCSX & SELECT) ;
+
+!ROMX   = (ADDRESS:[2000..7fff] & ROMNO:6    & !CPM & !MREQB)
+        # (ROMCSX & !SELECT) ;
+
+!RAM    = (ADDRESS:[8000..BFFF] & PAGENO:0          & !MREQB)
+        # (ADDRESS:[C000..FFFF]                     & !MREQB) ;
+
+!RAM2   = (ADDRESS:[4000..7fff] & PAGENO:0 & !ROM6 & !MREQB)
+        # (ADDRESS:[8000..bfff] & PAGENO:1 & !CPM  & !MREQB)
+        # (ADDRESS:[0000..3fff] & PAGENO:0 &  CPM  & !MREQB) ;
+
+!ROM7   = (ADDRESS:[2000..3fff] & ROMNO:7    & !CPM & !MREQB) ;
+```
+
+How `ROMA13`/`ROMA14` pick the block (run mode, A13 = 1 so CPU `2000–3FFF`):
+
+| R | R1 | R0 | ROMA14 | ROMA13 | Chip block |
+|---|---|---|---|---|---|
+| 0 | 0 | 0 | 0 | 1 | B `2000` |
+| 1 | 0 | 1 | 1 | 1 | C `6000` |
+| 3 | 1 | 1 | 1 | 0 | n `4000` |
+
+With A13 = 0 (CPU `0000–1FFF`) both are 0, so ROM A is always chip `0000`.
+
+- The fuse map (`.jed`, built 2024-01-17, name `v102-mtx-2`, rev 002) was decoded term by term and matches the source: RAM2 5 terms (the `!ROM6` factor expands to `!R2`, `!R1`, `R0`), ROM 4, ROMX 2 (`2000–7FFF` as `2000–3FFF/6000–7FFF` + `4000–5FFF`), RAM 2, ROM7 1, ROMA13 2, ROMA14 2. XOR bits make ROMA13 and ROMA14 active high and the rest active low. AC1 sets pin 21 as an input. Simple mode (SYN = 1, AC0 = 0). Pin 21's OLMC has no terms.
+- Every run-time select is qualified by `/MREQ`, so I/O and interrupt-acknowledge cycles select nothing. Refresh cycles do select memory (the PLD can't see `/RFSH`), which is harmless as on the Z80 SBC.
+- Stale comments in the source: pin 19 says "page 6 2000-3fff" (the equation is `2000–7FFF`); pin 17 says "MTX500 with 32KB fixed between 8000–FFFF" (8000–BFFF is paged).
+
+### 7.3 History (other files in the PLD folder)
+- `v102-mtx-0` (2023-12-04): reset was generated in the PLD (`RSTB` from `RESB`/`RESX`); ROMx was R = 3 at `2000–3FFF`; `ROMA14 = R0` with no `ROMA13`, so ROM A had to be duplicated at chip `4000`.
+- `v102-mtx-1` (2024-01-03; its `Name` field says `v102-mtx-2`): reset moved off the PLD (now IC9), `SELECT` added, otherwise as rev 0.
+- `v102-mtx-2` (2024-01-15, current): `ROMA13` added (spare block n at R = 3, no duplicate of ROM A needed), ROMx moved to R = 6 and widened to `2000–7FFF`, `ROMCSX` moved to pin 10.
+
+---
 
 ## 8. Timing notes
 

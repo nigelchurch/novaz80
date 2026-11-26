@@ -14,7 +14,7 @@
 <nav class="nav" aria-label="Main"><div class="wrap"><a class="brand" href="../index.html">NOVAZ80</a>
 <ul><li><a href="../index.html#story">Story</a></li><li><a href="../design.html">Design</a></li><li><a href="../index.html#build">Build</a></li><li><a href="../index.html#bus">Bus</a></li><li><a href="../index.html#boards" aria-current="true">Boards</a></li></ul></div></nav>
 <main id="main">
-<section class="paper sec"><div class="wrap"><p><a class="more" href="mtx.html">← MTX512 CPU board</a></p><article class="notes"><details class="toc"><summary>Contents</summary><ul><li><a href="#s0">0. Where this board sits in the NOVAZ80 project</a></li><li><a href="#s1">1. Summary</a></li><li><a href="#s2">2. Block diagram</a></li><li><a href="#s3">3. Parts (BoM)</a></li><li><a href="#s4">4. Subsystems</a></li><li><a href="#s5">5. Memory map (from the PLD)</a></li><li><a href="#s6">6. Connectors</a></li><li><a href="#s7">7. PLD</a></li><li><a href="#s8">8. Timing notes</a></li><li><a href="#s9">9. Observations for the next revision</a></li><li><a href="#s10">10. Open questions</a></li></ul></details><h1>NOVAZ80 MTX Board — V102-MTX-2 (Rev 001)</h1>
+<section class="paper sec"><div class="wrap"><p><a class="more" href="mtx.html">← MTX512 CPU board</a></p><article class="notes"><details class="toc"><summary>Contents</summary><ul><li><a href="#s0">0. Where this board sits in the NOVAZ80 project</a></li><li><a href="#s1">1. Summary</a></li><li><a href="#s2">2. Block diagram</a></li><li><a href="#s3">3. Parts (BoM)</a></li><li><a href="#s4">4. Subsystems</a></li><li><a href="#s5">5. Memory map (from the PLD)</a></li><li><a href="#s6">6. Connectors</a></li><li><a href="#s7">7. PLD (IC6, ATF20V8B) — pin use</a></li><li><a href="#s8">8. Timing notes</a></li><li><a href="#s9">9. Observations for the next revision</a></li><li><a href="#s10">10. Open questions</a></li></ul></details><h1>NOVAZ80 MTX Board — V102-MTX-2 (Rev 001)</h1>
 <p>Design analysis from <code>V102-MTX-2.net</code> (KiCad/Eeschema 9.0.7 export, 2026-11-25), the schematic (single sheet, <code>V102-MTX-2.kicad_sch</code>), the BoM and the PCB file (<code>V102-MTX-2.kicad_pcb</code>). ERC: 0 errors / 0 warnings. DRC: 0 violations, 0 unconnected pads, 0 footprint errors.</p>
 <p>Title block: <em>NOVAZ80 MTX – V102 MTX Board</em>, Nova Embedded Solutions, dated 2024-01-02, Rev 001.
 Revision note: &quot;Added control of ROM.A13 from PLD for programming to make use of 3rd 8kB block in RAM [sic: ROM] A|B|x|C&quot;.</p>
@@ -741,8 +741,212 @@ Revision note: &quot;Added control of ROM.A13 from PLD for programming to make u
 </tbody>
 </table></div>
 <hr />
-<h2 id="s7">7. PLD</h2>
-<p><em>The PLD source is being held back until its original authors are credited.</em></p>
+<h2 id="s7">7. PLD (IC6, ATF20V8B) — pin use</h2>
+<h3>7.1 Pins</h3>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>Pin</th>
+<th>Signal</th>
+<th>Dir</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>A13</td>
+<td>in</td>
+<td></td>
+</tr>
+<tr>
+<td>2</td>
+<td>A14</td>
+<td>in</td>
+<td></td>
+</tr>
+<tr>
+<td>3</td>
+<td>A15</td>
+<td>in</td>
+<td></td>
+</tr>
+<tr>
+<td>4</td>
+<td>MREQB</td>
+<td>in</td>
+<td></td>
+</tr>
+<tr>
+<td>5–8</td>
+<td>P0–P3</td>
+<td>in</td>
+<td>RAM page</td>
+</tr>
+<tr>
+<td>9</td>
+<td>R0</td>
+<td>in</td>
+<td></td>
+</tr>
+<tr>
+<td>10</td>
+<td>ROMCSX</td>
+<td>in</td>
+<td>Programmer, active high. <strong>No pull-down</strong></td>
+</tr>
+<tr>
+<td>11</td>
+<td>—</td>
+<td>in</td>
+<td>Spare, unconnected</td>
+</tr>
+<tr>
+<td>13</td>
+<td>R1</td>
+<td>in</td>
+<td></td>
+</tr>
+<tr>
+<td>14</td>
+<td>R2</td>
+<td>in</td>
+<td></td>
+</tr>
+<tr>
+<td>15</td>
+<td>ROMA13</td>
+<td>out, active high</td>
+<td>Main ROM A13</td>
+</tr>
+<tr>
+<td>16</td>
+<td>ROMA14</td>
+<td>out, active high</td>
+<td>Main ROM A14</td>
+</tr>
+<tr>
+<td>17</td>
+<td>RAM</td>
+<td>out</td>
+<td>RAM /CS</td>
+</tr>
+<tr>
+<td>18</td>
+<td>ROM7</td>
+<td>out</td>
+<td>PROG pin 2 (off-board)</td>
+</tr>
+<tr>
+<td>19</td>
+<td>ROMX</td>
+<td>out</td>
+<td>ROMx /CS via J3</td>
+</tr>
+<tr>
+<td>20</td>
+<td>ROM</td>
+<td>out</td>
+<td>Main ROM /CS</td>
+</tr>
+<tr>
+<td>21</td>
+<td>SELECT</td>
+<td>in (I/O pin used as input)</td>
+<td>SW3</td>
+</tr>
+<tr>
+<td>22</td>
+<td>RAM2</td>
+<td>out</td>
+<td>RAM2 /CS</td>
+</tr>
+<tr>
+<td>23</td>
+<td>CPM</td>
+<td>in</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p><code>/RD</code>, <code>/WR</code>, <code>/IORQ</code> and <code>/M1</code> aren't PLD inputs. Pin 11 is the only spare.</p>
+<h3>7.2 Equations</h3>
+<p>WinCUPL, <code>Device g20v8a</code>; the <code>.jed</code> is simple mode (<code>g20v8as</code>).</p>
+<pre tabindex="0"><code>ROM6    =  R2 &amp; R1 &amp; !R0 ;
+
+ROMA13  = (!ROMCSX &amp; A13 &amp; !R1)  #  (ROMCSX &amp; A13) ;
+ROMA14  = (!ROMCSX &amp; A13 &amp;  R0)  #  (ROMCSX &amp; A14) ;
+
+!ROM    = (ADDRESS:[0000..1fff]              &amp; !CPM &amp; !MREQB)
+        # (ADDRESS:[2000..3fff] &amp; ROMNO:0    &amp; !CPM &amp; !MREQB)
+        # (ADDRESS:[2000..3fff] &amp; ROMNO:1    &amp; !CPM &amp; !MREQB)
+        # (ADDRESS:[2000..3fff] &amp; ROMNO:3    &amp; !CPM &amp; !MREQB)
+        # (ROMCSX &amp; SELECT) ;
+
+!ROMX   = (ADDRESS:[2000..7fff] &amp; ROMNO:6    &amp; !CPM &amp; !MREQB)
+        # (ROMCSX &amp; !SELECT) ;
+
+!RAM    = (ADDRESS:[8000..BFFF] &amp; PAGENO:0          &amp; !MREQB)
+        # (ADDRESS:[C000..FFFF]                     &amp; !MREQB) ;
+
+!RAM2   = (ADDRESS:[4000..7fff] &amp; PAGENO:0 &amp; !ROM6 &amp; !MREQB)
+        # (ADDRESS:[8000..bfff] &amp; PAGENO:1 &amp; !CPM  &amp; !MREQB)
+        # (ADDRESS:[0000..3fff] &amp; PAGENO:0 &amp;  CPM  &amp; !MREQB) ;
+
+!ROM7   = (ADDRESS:[2000..3fff] &amp; ROMNO:7    &amp; !CPM &amp; !MREQB) ;
+</code></pre>
+<p>How <code>ROMA13</code>/<code>ROMA14</code> pick the block (run mode, A13 = 1 so CPU <code>2000–3FFF</code>):</p>
+<div class="scroll" tabindex="0"><table>
+<thead>
+<tr>
+<th>R</th>
+<th>R1</th>
+<th>R0</th>
+<th>ROMA14</th>
+<th>ROMA13</th>
+<th>Chip block</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>0</td>
+<td>0</td>
+<td>0</td>
+<td>1</td>
+<td>B <code>2000</code></td>
+</tr>
+<tr>
+<td>1</td>
+<td>0</td>
+<td>1</td>
+<td>1</td>
+<td>1</td>
+<td>C <code>6000</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>1</td>
+<td>1</td>
+<td>1</td>
+<td>0</td>
+<td>n <code>4000</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>With A13 = 0 (CPU <code>0000–1FFF</code>) both are 0, so ROM A is always chip <code>0000</code>.</p>
+<ul>
+<li>The fuse map (<code>.jed</code>, built 2024-01-17, name <code>v102-mtx-2</code>, rev 002) was decoded term by term and matches the source: RAM2 5 terms (the <code>!ROM6</code> factor expands to <code>!R2</code>, <code>!R1</code>, <code>R0</code>), ROM 4, ROMX 2 (<code>2000–7FFF</code> as <code>2000–3FFF/6000–7FFF</code> + <code>4000–5FFF</code>), RAM 2, ROM7 1, ROMA13 2, ROMA14 2. XOR bits make ROMA13 and ROMA14 active high and the rest active low. AC1 sets pin 21 as an input. Simple mode (SYN = 1, AC0 = 0). Pin 21's OLMC has no terms.</li>
+<li>Every run-time select is qualified by <code>/MREQ</code>, so I/O and interrupt-acknowledge cycles select nothing. Refresh cycles do select memory (the PLD can't see <code>/RFSH</code>), which is harmless as on the Z80 SBC.</li>
+<li>Stale comments in the source: pin 19 says &quot;page 6 2000-3fff&quot; (the equation is <code>2000–7FFF</code>); pin 17 says &quot;MTX500 with 32KB fixed between 8000–FFFF&quot; (8000–BFFF is paged).</li>
+</ul>
+<h3>7.3 History (other files in the PLD folder)</h3>
+<ul>
+<li><code>v102-mtx-0</code> (2023-12-04): reset was generated in the PLD (<code>RSTB</code> from <code>RESB</code>/<code>RESX</code>); ROMx was R = 3 at <code>2000–3FFF</code>; <code>ROMA14 = R0</code> with no <code>ROMA13</code>, so ROM A had to be duplicated at chip <code>4000</code>.</li>
+<li><code>v102-mtx-1</code> (2024-01-03; its <code>Name</code> field says <code>v102-mtx-2</code>): reset moved off the PLD (now IC9), <code>SELECT</code> added, otherwise as rev 0.</li>
+<li><code>v102-mtx-2</code> (2024-01-15, current): <code>ROMA13</code> added (spare block n at R = 3, no duplicate of ROM A needed), ROMx moved to R = 6 and widened to <code>2000–7FFF</code>, <code>ROMCSX</code> moved to pin 10.</li>
+</ul>
+<hr />
 <h2 id="s8">8. Timing notes</h2>
 <ul>
 <li><strong>Decode:</strong> ATF20V8B propagation (speed grade not confirmed: the symbol says -10, the part fields say a 16V8B-15). The ROM's A13/A14 also go through the PLD, so ROM access = PLD delay + 28C256 address access. At 4 MHz (T = 250 ns) the opcode-fetch budget is roughly 220–250 ns after the PLD delay, comfortable for a 150 ns 28C256 and a 70 ns 62256.</li>

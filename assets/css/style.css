@@ -124,6 +124,16 @@ input[type=range]{width:100%;max-width:340px;height:32px;accent-color:var(--red)
 .steps li{counter-increment:s;display:grid;grid-template-columns:34px 1fr;padding:11px 0;border-top:1px solid var(--line)}
 .steps li::before{content:counter(s);color:var(--red-lit);font-weight:800;font-stretch:118%}
 
+/* the road to v102 */
+.road{list-style:none;margin:14px 0 0;padding:0;counter-reset:r;display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:2px}
+.road li{counter-increment:r;padding:14px 14px 16px;background:#e5e1d8;border-top:6px solid var(--red)}
+.road li:last-child{background:var(--ink);color:var(--white);border-color:var(--gold)}
+.road li::before{content:counter(r);display:block;font-weight:850;font-stretch:118%;color:var(--red-text)}
+.road li:last-child::before{color:var(--gold)}
+.road b{display:block;line-height:1.25;overflow-wrap:normal;hyphens:auto}
+.road span{display:block;margin-top:4px;font-size:.9rem;line-height:1.4;color:var(--soft)}
+.road li:last-child span{color:#c9c7c3}
+
 /* page-write bars */
 .race{margin:28px 0 0}
 .race dt{font-weight:650}
@@ -534,6 +544,9 @@ svg .kt{font-size:12px;font-weight:700;fill:#111}
 @keyframes fromr{from{transform:translateX(60%);opacity:.2}}
 @keyframes froml{from{transform:translateX(-60%);opacity:.2}}
 @media(max-width:640px){
+  .road{grid-template-columns:minmax(0,1fr)}
+  .road li{display:grid;grid-template-columns:28px 1fr;column-gap:4px;padding:10px 12px}
+  .road li::before{grid-row:span 2}
   .cards,.sec .pair{display:flex;gap:12px;background:none;border:0;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none;margin-inline:calc(var(--pad)*-1);padding-inline:var(--pad);scroll-padding-inline:var(--pad)}
   .cards::-webkit-scrollbar,.sec .pair::-webkit-scrollbar{display:none}
   .card{flex:0 0 76%;scroll-snap-align:start;border:1px solid var(--line);padding:16px}

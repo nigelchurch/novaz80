@@ -35,7 +35,86 @@
 <div class="sheets"><a class="sheet" href="../assets/docs/V102-MTX-2-schematic.pdf" data-sheets="1" data-id="mtx" data-start="0" data-title="MTX512 CPU board schematic" data-labels="Main sheet"><img src="../assets/sch/mtx-1.webp" width="1100" height="778" alt="MTX512 CPU board schematic, main sheet"><span>Main sheet<b>Open</b></span></a></div></div></section>
 <section class="paper sec"><div class="wrap"><h2>Photo and files</h2>
 <div class="ph"><span class="tag">Live photo: board-mtx.jpg</span><b>The built MTX512 CPU board</b><span>Straight down or three-quarter view, chips fitted, plain background.</span></div>
-<h3 style="margin-top:36px">Downloads</h3><ul class="dl"><li><a href="../assets/docs/V102-MTX-2-schematic.pdf">Schematic (PDF)</a></li><li><a href="../assets/docs/V102-MTX-2-board.pdf">Board layout (PDF)</a></li><li><a href="../assets/docs/V102-MTX-2-bom.csv">Parts list (CSV)</a></li><li><a href="mtx-notes.html">Full design notes</a></li></ul><p class="small">Game and BIOS ROMs are not published.</p></div></section>
+<h3 style="margin-top:36px">Downloads</h3><ul class="dl"><li><a href="../assets/docs/V102-MTX-2-schematic.pdf">Schematic (PDF)</a></li><li><a href="../assets/docs/V102-MTX-2-board.pdf">Board layout (PDF)</a></li><li><a href="../assets/docs/V102-MTX-2-bom.csv">Parts list (CSV)</a></li><li><a href="../assets/docs/V102-MTX-2.pld">PLD source</a></li><li><a href="mtx-notes.html">Full design notes</a></li></ul><details><summary>Read the PLD source, V102-MTX-2</summary><pre class="code" tabindex="0">Name     v102-mtx-2 ;
+PartNo   00 ;
+Date     15-1-2024 ;
+Revision 002 ; // now no need for the romA image at 4000h
+Designer Nigel ;
+Company  Nova Embedded Solutions ;
+Assembly None ;
+Location xx ;
+Device   g20v8a ;	
+
+/* *************** INPUT PINS ******************** */
+PIN 1           =   A13	        ; 
+PIN 2           =   A14         ;
+PIN 3           =   A15         ;
+PIN 4           =   MREQB       ; 
+PIN 5           =   P0          ;
+PIN 6           =   P1          ; 
+PIN 7           =   P2          ; 
+PIN 8           =   P3          ; 
+PIN 9           =   R0		; 
+PIN 10          =   ROMCSX      ;
+// PIN 11       Spare input
+PIN 13          =   R1          ;
+PIN 14          =   R2          ;
+// outputs x 7
+PIN 21          =   SELECT      ; /* prog target select - 1 for ROMABC, 0 for ROMx */ 
+PIN 23          =   CPM         ;
+
+FIELD ADDRESS   =   [A15..0]    ;
+FIELD PAGENO    =   [P3..0]     ;
+FIELD ROMNO     =   [R2..0]     ;
+
+/* *************** OUTPUT PINS ******************** */
+PIN 15          =   ROMA13      ; // A13 pin on main ROMABC to utilise redundant 8kB */
+PIN 16          =   ROMA14      ; // A14 pin on main ROMABC */
+PIN 17          =   RAM         ; // SIMPLE FOR MTX500 WITH 32KB FIXED BETWEEN 8000-FFFF */ 
+PIN 18          =   ROM7        ; // select for cartridge rom 7 - off board */ 
+PIN 19          =   ROMX        ; // optional stand-alone user rom - page 6 2000-3fff */ 
+PIN 20          =   ROM         ; // Main ROM and an 8kB programmable user space  */ 
+PIN 22          =   RAM2        ; // Third and forth 16k ram blocks - see below           
+
+/* *********** INTERMEDIATE EQUATIONS ************** */	
+ROM6 = R2    &amp; R1    &amp; !R0   ;
+//* can&#x27;t seem to get ROMNO:6 to behave as expected
+
+/* *************** OUTPUT LOGIC ******************** */	
+ROMA13  = (!ROMCSX      &amp; A13           &amp; !R1   )  
+        # (ROMCSX       &amp; A13                   )                                       ;  
+//* transparent while programming needs embedded rom to have r1 and r0 set i.e. rom 3 or 7
+
+ROMA14  = (!ROMCSX                      &amp; R0            &amp; A13   ) 
+        # (ROMCSX                       &amp; A14                   )                       ;
+//* transparent while programming
+
+!ROM  	= (ADDRESS:[0000..1fff]                         &amp; !CPM          &amp; !MREQB) 
+        # (ADDRESS:[2000..3fff]         &amp; ROMNO:0       &amp; !CPM          &amp; !MREQB)        
+        # (ADDRESS:[2000..3fff]         &amp; ROMNO:1       &amp; !CPM          &amp; !MREQB)
+        # (ADDRESS:[2000..3fff]         &amp; ROMNO:3       &amp; !CPM          &amp; !MREQB)
+        # (ROMCSX                       &amp; SELECT)                                       ; 
+//* Main ROM A|B|n|C with R0 bit driving ROM address pin A14 to offset ROMC
+//* additional embedded rom also mapped to spece between b and c must be rom 3 or 7
+
+!ROMX  	= (ADDRESS:[2000..7fff]         &amp; ROMNO:6       &amp; !CPM          &amp; !MREQB)
+        # (ROMCSX                       &amp; !SELECT)                                      ; 
+//* On board stand alone ROM 2000-3fff - can be set to any spare space
+
+!RAM  	= (ADDRESS:[8000..BFFF]         &amp; PAGENO:0                      &amp; !MREQB)          
+        # (ADDRESS:[C000..FFFF]                                         &amp; !MREQB)       ; 
+//* MTX 500 ram P=0 8000-BFFF OR P=X C000-FFFF
+
+!RAM2  	= (ADDRESS:[4000..7fff]         &amp; PAGENO:0      &amp; !ROM6         &amp; !MREQB) 
+        # (ADDRESS:[8000..bfff]         &amp; PAGENO:1      &amp; !CPM          &amp; !MREQB)
+        # (ADDRESS:[0000..3fff]         &amp; PAGENO:0      &amp; CPM           &amp; !MREQB)       ; 
+//* In ROM mode (!CPM): (P=0 &amp; 4000-7fff) and (P=1 &amp; 8000-Bfff)
+//* in RAM mode (CPM):  (P=0 &amp; 0000-3FFF) and (P=0 &amp; 4000-7FFF) 
+
+!ROM7  	= (ADDRESS:[2000..3fff]         &amp; ROMNO:7       &amp; !CPM          &amp; !MREQB)       ;
+//* R=7 2000-3fff
+
+/* END OF FILE */</pre></details><p class="small">Game and BIOS ROMs are not published.</p></div></section>
 <section class="dark sec"><div class="wrap pn"><a rel="prev" href="6502.html">← 6502 SBC</a><a href="../index.html#boards">All boards</a><a rel="next" href="io1.html">I/O board →</a></div></section>
 </main>
 <footer><div class="wrap"><div class="bars"></div><p>NOVAZ80, by NOVA Embedded Solutions. A hobby project, built just for fun. <a href="../index.html">The story</a> · <a href="../credits.html">Credits</a></p></div></footer>

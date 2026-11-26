@@ -38,7 +38,7 @@ META = {
             [("Controller", "ATmega8"), ("Bus drive", "Three PCF8574 I²C expanders"), ("Writes", "One byte at a time"), ("Pads", "Three, all wired in parallel"), ("Accepts", "v101 and v102 boards")]),
 }
 SHEETS = {"z80": ["Main sheet", "Connectors"], "6502": ["Main sheet", "Connectors"], "vdp": ["Main sheet", "Connectors"], "pr2": ["Main sheet", "v102 bus"]}
-PLD = {"z80": "V102-Z80-00", "6502": "V102-6502-00", "io1": "V102-IO1-00", "vdp": "V102-VDP-00", "io2": "V102-IO2-00"}
+PLD = {"z80": "V102-Z80-00", "6502": "V102-6502-00", "io1": "V102-IO1-00", "vdp": "V102-VDP-00", "io2": "V102-IO2-00", "mtx": "V102-MTX-2"}
 
 PAGING = """<section class="dark sec"><div class="wrap"><h2>Turn the pages yourself</h2>
 <p>One write to port 00h decides what the Z80 sees. Pick a ROM page, a RAM page and a mode. The map follows the board's decode logic.</p>
