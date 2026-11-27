@@ -244,7 +244,7 @@ def main():
         tc.send("Emulation.setTouchEmulationEnabled", {"enabled": False})
         pg.set_viewport_size({"width": 1440, "height": 900})
         cur[0] = "3D and schematics"
-        ids = ["z80", "6502", "mtx", "io1", "vdp", "io2", "pr1", "pr2"]
+        ids = ["z80", "6502", "mtx", "io1", "vdp", "io2", "kbd", "pr1", "pr2"]
         for i in ids:
             pg.goto(base + f"boards/{i}.html")
             pg.wait_for_selector(".model.live, .mgo:not([disabled])", timeout=90000)
@@ -252,8 +252,8 @@ def main():
                 pg.click(".mgo")
                 pg.wait_for_selector(".model.live", timeout=90000)
             d = pg.evaluate("(()=>{const d=document.querySelector('model-viewer').getDimensions();return [d.x,d.y,d.z]})()")
-            want = 0.33 if i == "pr2" else 0.12
-            ok(f"{i} model is board-sized ({[round(v, 3) for v in d]})", 0.095 < d[0] < want and d[1] < 0.07)
+            lo, hi = {"pr2": (.3, .33), "kbd": (.42, .43)}.get(i, (.095, .12))
+            ok(f"{i} model is board-sized ({[round(v, 3) for v in d]})", lo < d[0] < hi and d[1] < 0.07)
             pg.locator(".sheet").last.click()
             pg.wait_for_function("(document.querySelector('.vthing')||{}).naturalWidth>0")
             ok(f"{i} schematic opens on the sheet tapped", f"sch/{i}-{pg.locator('.sheet').count()}.svg" in pg.get_attribute(".vthing", "src"))

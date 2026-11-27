@@ -1106,6 +1106,151 @@
    ]
   ]
  },
+ "kbd": {
+  "ref": "Z80-MTX-KBD-002",
+  "how": [
+   "OUT (05h) latches a drive pattern into a 74HC273, which pulls one or more of the eight rows low through diodes",
+   "Ten sense lines with 10 k pull-ups show which keys in the driven rows are down",
+   "IN (05h) reads sense lines 0–7 and IN (06h) reads lines 8 and 9, each through a 74HC244",
+   "One ribbon cable to the I/O board carries data, strobes, power and reset"
+  ],
+  "won": [
+   "Rev 003: buffer wiring changed and debounce capacitors added",
+   "Full-travel Cherry MX Red switches with DSA keycaps",
+   "Reset needs both reset keys held together, then passes through a debounce to the bus KBDRST line",
+   "Test points on every drive and sense line"
+  ],
+  "next": [],
+  "parts": [
+   [
+    "1",
+    "IC3A1",
+    "74HC273 drive latch, written by OUT (05h)"
+   ],
+   [
+    "2",
+    "IC2A1",
+    "74HC244 sense buffer, KB0–KB7, read by IN (05h)"
+   ],
+   [
+    "3",
+    "IC1D1",
+    "74HC244 sense buffer, KB8–KB9, read by IN (06h)"
+   ],
+   [
+    "4",
+    "J1",
+    "Cable to the I/O board's MTX keyboard connector"
+   ],
+   [
+    "5",
+    "D1–D8",
+    "Diodes from the latch to the eight drive lines"
+   ],
+   [
+    "6",
+    "R1–R10",
+    "Pull-ups on the ten sense lines"
+   ],
+   [
+    "7",
+    "SW49, SW59",
+    "The two reset keys, wired in series"
+   ],
+   [
+    "8",
+    "R11, C7, D9, JP1",
+    "Reset debounce, and the jumper that connects it to KBDRST"
+   ],
+   [
+    "9",
+    "dr0–kb9",
+    "Test points on every drive and sense line"
+   ],
+   [
+    "10",
+    "SW1–SW80",
+    "79 key switches in an 8 × 10 matrix"
+   ]
+  ],
+  "spots": [
+   [
+    1,
+    60.36,
+    9.3
+   ],
+   [
+    2,
+    22.95,
+    9.3
+   ],
+   [
+    3,
+    35.77,
+    9.3
+   ],
+   [
+    4,
+    48.65,
+    8.86
+   ],
+   [
+    5,
+    72.08,
+    9.3
+   ],
+   [
+    6,
+    9.73,
+    9.28
+   ],
+   [
+    6,
+    84.78,
+    9.28
+   ],
+   [
+    7,
+    55.29,
+    91.34
+   ],
+   [
+    7,
+    20.34,
+    91.34
+   ],
+   [
+    8,
+    63.6,
+    90.45
+   ],
+   [
+    8,
+    53.58,
+    9.12
+   ],
+   [
+    9,
+    9.14,
+    4.61
+   ],
+   [
+    9,
+    72.09,
+    15.08
+   ],
+   [
+    9,
+    84.22,
+    4.51
+   ],
+   [
+    10,
+    37.79,
+    90.54
+   ]
+  ]
+ },
  "pr1": {
   "ref": "V102-PR1-2",
   "how": [

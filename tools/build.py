@@ -32,12 +32,16 @@ META = {
             [("Video", "TMS9929A or TMS9918A"), ("VRAM", "16 K, in a 62256 SRAM"), ("Sound", "SN76489"), ("Out", "Component or composite video, audio"), ("Glue", "GAL16V8")]),
     "io2": ("I/O 2 with LCD", "A front panel for the top of the stack: four lines of text, eight buttons, two spare ports.",
             [("Display", "20 × 4 HD44780 at 30h"), ("Ports", "82C55A at 24h"), ("Buttons", "Eight"), ("Position", "Top of the stack"), ("Glue", "GAL16V8")]),
+    "kbd": ("MTX keyboard", "A full-travel keyboard laid out as an 8 × 10 matrix, read just as the MTX reads its own.",
+            [("Matrix", "8 drive lines × 10 sense lines"), ("Keys", "79, Cherry MX Red, DSA caps"), ("Ports", "OUT 05h drive, IN 05h and 06h sense"), ("Reset", "Two keys together, or a jumper to disable"), ("Size", "425 × 120 mm, family v101")]),
     "pr1": ("Fast programmer", "Takes over the bus and writes the CPU board's ROM where it sits.",
             [("Controller", "ATmega64A at 16 MHz"), ("Buffer", "64 K SPI SRAM"), ("Link", "USB, through an FT232RL"), ("Writes", "64-byte pages"), ("Targets", "All three CPU boards")]),
     "pr2": ("3-pad programmer", "The first programmer to work, and a side-by-side bench for debugging every board.",
             [("Controller", "ATmega8"), ("Bus drive", "Three PCF8574 I²C expanders"), ("Writes", "One byte at a time"), ("Pads", "Three, all wired in parallel"), ("Accepts", "v101 and v102 boards")]),
 }
 SHEETS = {"z80": ["Main sheet", "Connectors"], "6502": ["Main sheet", "Connectors"], "vdp": ["Main sheet", "Connectors"], "pr2": ["Main sheet", "v102 bus"]}
+DOC = {"kbd": "V101-MTX-KBD-002"}
+WIDE = {"pr2": (1077, 397), "kbd": (1600, 475)}
 PLD = {"z80": "V102-Z80-00", "6502": "V102-6502-00", "io1": "V102-IO1-00", "vdp": "V102-VDP-00", "io2": "V102-IO2-00", "mtx": "V102-MTX-2"}
 
 PAGING = """<section class="dark sec"><div class="wrap"><h2>Turn the pages yourself</h2>
@@ -101,8 +105,10 @@ def ul(items):
 def board(i, n, ids):
     d, (name, tag, facts) = DATA[i], META[i]
     ref = d["ref"]
-    wide = i == "pr2"
-    size = (1077, 397) if wide else (1042, 1064)
+    wide = i in WIDE
+    size = WIDE.get(i, (1042, 1064))
+    doc = DOC.get(i, "V102-" + ref[5:])
+    has_notes = os.path.exists(os.path.join(C, "notes", i + ".md"))
     seen = {p[0]: p for p in d["parts"]}
     spots = "".join(
         f'<button type="button" class="spot" data-p="{k}" style="left:{x}%;top:{y}%" aria-label="{E(str(k) + ", " + seen[str(k)][2])}">{k}</button>'
@@ -114,16 +120,16 @@ def board(i, n, ids):
     if i in PLD:
         src = read(os.path.join(ROOT, "assets", "docs", PLD[i] + ".pld"))
         pld = f'<details><summary>Read the PLD source, {PLD[i]}</summary><pre class="code" tabindex="0">{E(src.strip())}</pre></details>'
-    dls = [(f"V102-{ref[5:]}-schematic.pdf", "Schematic (PDF)"), (f"V102-{ref[5:]}-board.pdf", "Board layout (PDF)"), (f"V102-{ref[5:]}-bom.csv", "Parts list (CSV)")]
+    dls = [(f"{doc}-schematic.pdf", "Schematic (PDF)"), (f"{doc}-board.pdf", "Board layout (PDF)"), (f"{doc}-bom.csv", "Parts list (CSV)")]
     if i in PLD:
         dls.append((PLD[i] + ".pld", "PLD source"))
-    dl = "".join(f'<li><a href="../assets/docs/{f}">{t}</a></li>' for f, t in dls) + f'<li><a href="{i}-notes.html">Full design notes</a></li>'
+    dl = "".join(f'<li><a href="../assets/docs/{f}">{t}</a></li>' for f, t in dls) + (f'<li><a href="{i}-notes.html">Full design notes</a></li>' if has_notes else "")
     held = '<p class="small">Game and BIOS ROMs are not published.</p>' if i == "mtx" else ""
     pages = SHEETS.get(i, ["Main sheet"])
     mb = round(os.path.getsize(os.path.join(ROOT, "assets", "3d", i + ".glb")) / 1e6, 1)
 
     def sheet(k):
-        return (f'href="../assets/docs/V102-{ref[5:]}-schematic.pdf" data-sheets="{len(pages)}" data-id="{i}" data-start="{k}" '
+        return (f'href="../assets/docs/{doc}-schematic.pdf" data-sheets="{len(pages)}" data-id="{i}" data-start="{k}" '
                 f'data-title="{E(name)} schematic" data-labels="{"|".join(pages)}"')
     thumbs = "".join(f'<a class="sheet" {sheet(k)}><img src="../assets/sch/{i}-{k + 1}.webp" width="1100" height="778" alt="{E(name)} schematic, {t.lower()}"><span>{t}<b>Open</b></span></a>' for k, t in enumerate(pages))
     prev, nxt = ids[(n - 1) % len(ids)], ids[(n + 1) % len(ids)]
@@ -132,12 +138,12 @@ def board(i, n, ids):
 <div class="model" data-glb="../assets/3d/{i}.glb"><img src="../assets/img/iso-{i}.webp" width="1300" height="850" alt="Render of the {E(name)}"><button type="button" class="mgo"><span>Rotate in 3D · {mb} MB</span></button></div></div></header>
 <section class="dark sec"><div class="wrap"><h2>What's on the board</h2>
 <div class="map{' wide' if wide else ''}"><div class="pic"><div class="inner"><img src="../assets/img/top-{i}.webp" width="{size[0]}" height="{size[1]}" alt="{E(name)} from above">{spots}</div></div><ol class="plist">{parts}</ol></div></div></section>
-<section class="paper sec"><div class="wrap cols3"><div><h2>How it works</h2>{ul(d["how"])}</div><div><h2>What it took</h2>{ul(d["won"])}</div><div><h2>Next revision</h2>{ul(d["next"])}</div></div></section>
+<section class="paper sec"><div class="wrap cols3">{"".join(f"<div><h2>{h}</h2>{ul(d[x])}</div>" for h, x in (("How it works", "how"), ("What it took", "won"), ("Next revision", "next")) if d[x])}</div></section>
 {EXTRA.get(i, "")}
 <section class="dark sec" id="schematic"><div class="wrap"><h2>Schematic</h2><p class="soft">Tap to open it full screen, then pinch, scroll or drag to explore. It stays sharp at any zoom.</p>
 <div class="sheets">{thumbs}</div></div></section>
 <section class="paper sec"><div class="wrap"><h2>Photo and files</h2>
-<div class="ph"><span class="tag">Live photo: board-{i}.jpg</span><b>The built {E(name)}</b><span>Straight down or three-quarter view, chips fitted, plain background.</span></div>
+<div class="ph"><span class="tag">Live photo: board-{i}.jpg</span><b>The built {E(name)}</b><span>{"Straight down, and on the bench with the stack." if i == "kbd" else "Straight down or three-quarter view, chips fitted, plain background."}</span></div>
 <h3 style="margin-top:36px">Downloads</h3><ul class="dl">{dl}</ul>{pld}{held}</div></section>
 <section class="dark sec"><div class="wrap pn"><a rel="prev" href="{prev}.html">← {E(META[prev][0])}</a><a href="../index.html#boards">All boards</a><a rel="next" href="{nxt}.html">{E(META[nxt][0])} →</a></div></section>"""
     return page(name, tag, body)
@@ -214,7 +220,8 @@ if __name__ == "__main__":
     ids = list(META)
     for n, i in enumerate(ids):
         write(i + ".html", board(i, n, ids))
-        write(i + "-notes.html", notes(i))
+        if os.path.exists(os.path.join(C, "notes", i + ".md")):
+            write(i + "-notes.html", notes(i))
     d = page("Design", "How the NOVAZ80 boards fit together: block diagrams, bus, machines and the upload flow.", design())
     with open(os.path.join(ROOT, "design.html"), "w", encoding="utf8", newline="\n") as f:
         f.write(d.replace("../", "").replace(' aria-current="true"', "").replace('<a href="design.html">Design', '<a href="design.html" aria-current="true">Design'))

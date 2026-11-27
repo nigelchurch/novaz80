@@ -177,6 +177,9 @@ figcaption{padding-top:10px;font-size:.95rem;color:var(--soft)}
 .card img{transition:transform .25s}
 .card:hover{background:var(--ink-2);box-shadow:inset 0 4px var(--red)}
 .card:hover img{transform:translateY(-5px)}
+.card.long{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);column-gap:24px;align-content:center}
+.card.long img{grid-row:span 2;width:100%}
+.card.long b{margin-top:0;align-self:end}
 .card b{font-stretch:112%;font-weight:750;font-size:1.12rem;margin-top:12px}
 .card span{color:var(--grey);font-size:.95rem;line-height:1.4;margin-top:4px}
 
@@ -550,6 +553,8 @@ svg .kt{font-size:12px;font-weight:700;fill:#111}
   .cards,.sec .pair{display:flex;gap:12px;background:none;border:0;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none;margin-inline:calc(var(--pad)*-1);padding-inline:var(--pad);scroll-padding-inline:var(--pad)}
   .cards::-webkit-scrollbar,.sec .pair::-webkit-scrollbar{display:none}
   .card{flex:0 0 76%;scroll-snap-align:start;border:1px solid var(--line);padding:16px}
+  .card.long{display:flex}
+  .card.long b{margin-top:12px}
   .card b{font-size:1.15rem}
   .sec .pair .photo{flex:0 0 86%;scroll-snap-align:start}
   .dots{display:flex;justify-content:center;gap:10px;padding-top:18px}
