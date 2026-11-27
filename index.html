@@ -64,19 +64,19 @@
       <p>Debugging is part of the fun. There's no sense of achievement without a few hurdles. But that early on, a wall of wires would have been too big a setback.</p>
     </div>
     <h3 style="margin-top:28px">From a copy to a family</h3>
+    <p class="soft">The boards in the order they were made.</p>
     <ol class="road">
-      <li><b>6502 PCB</b><span>Heavily based on Ben Eater's design</span></li>
-      <li><b>6502 PCB with a ZIF socket</b><span>So the ROM could come out quickly</span></li>
-      <li><b>Z80 single-board computer</b><span>Also with a ZIF socket for the ROM</span></li>
-      <li><b>Z80, programmed in place</b><span>The ROM no longer had to come out</span></li>
-      <li><b>v001, the first modular set</b><span>Boards had fixed places, and the programmer sat outside the stack</span></li>
-      <li><b>v101</b><span>The programmer joins the assembly</span></li>
-      <li><b>v102</b><span>Every board carries the whole bus, in any order</span></li>
+      <li><img src="assets/img/ph/leg-1-900.webp" srcset="assets/img/ph/leg-1-900.webp 900w, assets/img/ph/leg-1-1600.webp 1600w" sizes="(max-width:640px) 80vw, 380px" width="900" height="552" alt="The first 6502 board, black, with its chip sockets empty"><time>Early 2022</time><b>6502 PCB</b><span>Heavily based on Ben Eater&#x27;s design.</span></li>
+      <li><img src="assets/img/ph/leg-2-900.webp" srcset="assets/img/ph/leg-2-900.webp 900w, assets/img/ph/leg-2-1600.webp 1600w" sizes="(max-width:640px) 80vw, 380px" width="900" height="765" alt="The 6502 board with the monitor board and its LCD on top"><time>Early 2022</time><b>Bus monitor</b><span>Single-steps the clock and shows the address and data buses, as in Ben Eater&#x27;s videos.</span></li>
+      <li><img src="assets/img/ph/leg-3-900.webp" srcset="assets/img/ph/leg-3-900.webp 900w, assets/img/ph/leg-3-1600.webp 1600w" sizes="(max-width:640px) 80vw, 380px" width="900" height="628" alt="The second 6502 board, white, with empty sockets"><time>Early 2022</time><b>6502 PCB, second version</b><span>A PLD replaces the fixed glue logic, and a ZIF socket takes the ROM.</span></li>
+      <li><img src="assets/img/ph/leg-4-900.webp" srcset="assets/img/ph/leg-4-900.webp 900w, assets/img/ph/leg-4-1600.webp 1600w" sizes="(max-width:640px) 80vw, 380px" width="900" height="701" alt="The first Z80 board, green, with a blue ZIF socket"><time>Mar 2022</time><b>Z80 single-board computer</b><span>Z80-002. The same idea with the MTX&#x27;s processor, and a ZIF socket for the ROM.</span></li>
+      <li><img src="assets/img/ph/leg-5-900.webp" srcset="assets/img/ph/leg-5-900.webp 900w, assets/img/ph/leg-5-1600.webp 1600w" sizes="(max-width:640px) 80vw, 380px" width="900" height="660" alt="The blue programmable Z80 board with empty sockets"><time>Apr 2022</time><b>Z80, programmed in place</b><span>Z80-003. The first that could be programmed without pulling the ROM, with options for a monitor and in-circuit programming.</span></li>
+      <li><img src="assets/img/ph/leg-6-900.webp" srcset="assets/img/ph/leg-6-900.webp 900w, assets/img/ph/leg-6-1600.webp 1600w" sizes="(max-width:640px) 80vw, 380px" width="900" height="663" alt="The purple Z80 in-circuit loader board"><time>May 2022</time><b>Z80 with an on-board loader</b><span>Z80-004. A slot for a microcontroller to program the ROM. Abandoned, and the programmer became a board of its own instead.</span></li>
+      <li><img src="assets/img/ph/leg-7-900.webp" srcset="assets/img/ph/leg-7-900.webp 900w, assets/img/ph/leg-7-1600.webp 1600w" sizes="(max-width:640px) 80vw, 380px" width="900" height="500" alt="The v001 boards side by side on their base, with the external programmer"><time>Mid 2022</time><b>v001, the first modular set</b><span>The first modular system to run, and it still runs the same operating system. Boards sit in fixed places on a simple base, and the programmer sits outside.</span></li>
+      <li><span class="nopic">Photo to come</span><time>Late 2022</time><b>v101</b><span>The programmer joins the base.</span></li>
+      <li><img src="assets/img/ph/leg-9-900.webp" srcset="assets/img/ph/leg-9-900.webp 900w, assets/img/ph/leg-9-1600.webp 1600w" sizes="(max-width:640px) 80vw, 380px" width="900" height="739" alt="A v102 stack of white boards"><time>2023</time><b>v102</b><span>Every board carries the whole bus, in any order.</span></li>
     </ol>
-    <div class="phs">
-      <div class="ph"><span class="tag">Live photo: first-6502-pcb.jpg</span><b>The first 6502 PCB</b><span>The board based on Ben Eater's design.</span></div>
-      <div class="ph"><span class="tag">Live photo: early-boards.jpg</span><b>The early boards together</b><span>ZIF-socket 6502, Z80, the programmable Z80 and v001, side by side.</span></div>
-    </div>
+    <p class="small soft">Dates are approximate: the early boards came in quick succession. Their chips have since moved to the current boards, which is why the sockets are empty.</p>
   </div>
 </div></section>
 
@@ -143,6 +143,7 @@ Process complete (duration 0:00:17.703169)</pre></div>
       <figure><img src="assets/img/stacked.webp" width="1600" height="960" alt="Boards stacked in a tower"><figcaption>Stacked: the compact machine.</figcaption></figure>
       <figure><img src="assets/img/flat.webp" width="1600" height="960" alt="Three boards side by side on a backplane programmer"><figcaption>Flat: the same machine on the three-pad programmer, open to a probe.</figcaption></figure>
     </div>
+    <div class="shots"><figure class="shot"><img src="assets/img/ph/stack-real-900.webp" srcset="assets/img/ph/stack-real-900.webp 900w, assets/img/ph/stack-real-1600.webp 1600w" sizes="(max-width:640px) 84vw, 520px" width="900" height="786" alt="A real stack of four NOVAZ80 boards"><figcaption><b>As built: stacked</b></figcaption></figure><figure class="shot"><img src="assets/img/ph/flat-real-900.webp" srcset="assets/img/ph/flat-real-900.webp 900w, assets/img/ph/flat-real-1600.webp 1600w" sizes="(max-width:640px) 84vw, 520px" width="900" height="507" alt="NOVAZ80 boards side by side on the programmer, with the keyboard"><figcaption><b>As built: side by side</b> With the LCD board and the keyboard.</figcaption></figure></div>
     <p style="margin-top:24px"><a class="more" href="design.html#stacked">See the block diagrams</a> or go <a class="more" href="boards/io1.html">inside the I/O board</a></p>
   </div>
 </div></section>
@@ -187,7 +188,7 @@ Process complete (duration 0:00:17.703169)</pre></div>
     <p><a class="more" href="boards/mtx.html">Inside the MTX board, with its paging</a> and <a class="more" href="boards/kbd.html">the keyboard</a></p>
     <div class="phs">
       <div class="ph"><span class="tag">Live photo: mtx-running.jpg</span><b>The MTX stack running a game</b><span>Screen and boards in one shot. The most important photo on the site.</span></div>
-      <div class="ph"><span class="tag">Live photo: mtx-keyboard.jpg</span><b>The keyboard built for it</b><span>On its own, or connected to the stack.</span></div>
+      <figure class="shot"><img src="assets/img/ph/mtx-stack-900.webp" srcset="assets/img/ph/mtx-stack-900.webp 900w, assets/img/ph/mtx-stack-1600.webp 1600w" sizes="(max-width:640px) 84vw, 520px" width="900" height="629" alt="The MTX stack of boards connected to its black full-travel keyboard"><figcaption><b>The MTX stack and its keyboard</b> LCD, video, I/O and MTX boards, with the full-travel keyboard.</figcaption></figure>
     </div>
   </div>
 </div></section>

@@ -68,6 +68,40 @@ ORIGINAL = """<section class="paper sec"><div class="wrap"><h2>The machine it re
 EXTRA = {"mtx": ORIGINAL + PAGING, "6502": TRANSLATE}
 
 
+def wdims(path):
+    """Width and height of a WebP file, read from its header."""
+    b = open(path, "rb").read(30)
+    k = b[12:16]
+    if k == b"VP8X":
+        return 1 + int.from_bytes(b[24:27], "little"), 1 + int.from_bytes(b[27:30], "little")
+    if k == b"VP8L":
+        v = int.from_bytes(b[21:25], "little")
+        return 1 + (v & 0x3FFF), 1 + ((v >> 14) & 0x3FFF)
+    return int.from_bytes(b[26:28], "little") & 0x3FFF, int.from_bytes(b[28:30], "little") & 0x3FFF
+
+
+def shot(slug, title, text, alt, up="../", sizes="(max-width:640px) 84vw, 560px"):
+    """One cut-out photo on a light card (images made by tools/photos.py)."""
+    w, h = wdims(os.path.join(ROOT, "assets", "img", "ph", slug + "-900.webp"))
+    src = f"{up}assets/img/ph/{slug}"
+    cap = f"<b>{E(title)}</b>" + (f" {E(text)}" if text else "")
+    return (f'<figure class="shot"><img src="{src}-900.webp" srcset="{src}-900.webp 900w, {src}-1600.webp 1600w" sizes="{sizes}" '
+            f'width="{w}" height="{h}" alt="{E(alt)}"><figcaption>{cap}</figcaption></figure>')
+
+
+def views(i, name):
+    return [(f"{i}-top", "From above", "", f"The built {name}, seen from above"),
+            (f"{i}-side", "Three-quarter view", "", f"The built {name}, seen from the front corner")]
+
+
+EXTRA_SHOTS = {
+    "io2": [("io2-bare", "With the LCD lifted off", "The board underneath, with its buttons and parallel I/O chip.", "The LCD board without its display")],
+    "pr2": [("pr2-flat", "In use as a backplane", "Boards side by side on its pads, with the keyboard connected.", "The 3-pad programmer with boards fitted and the keyboard attached")],
+    "kbd": [("kbd-stack", "Connected to a stack", "One ribbon cable to the I/O board.", "The keyboard connected to a stack of NOVAZ80 boards"),
+            ("kbd-first", "The first attempt", "Cheap tactile switches. It booted the MTX ROM and worked, but the key bounce made it painful to use, and it never suited the look, so the full-travel board went forward.", "The first MTX keyboard, built with small tactile push-buttons")],
+}
+
+
 def page(title, desc, body):
     return f"""<!doctype html>
 <html lang="en-GB">
@@ -142,8 +176,8 @@ def board(i, n, ids):
 {EXTRA.get(i, "")}
 <section class="dark sec" id="schematic"><div class="wrap"><h2>Schematic</h2><p class="soft">Tap to open it full screen, then pinch, scroll or drag to explore. It stays sharp at any zoom.</p>
 <div class="sheets">{thumbs}</div></div></section>
-<section class="paper sec"><div class="wrap"><h2>Photo and files</h2>
-<div class="ph"><span class="tag">Live photo: board-{i}.jpg</span><b>The built {E(name)}</b><span>{"Straight down, and on the bench with the stack." if i == "kbd" else "Straight down or three-quarter view, chips fitted, plain background."}</span></div>
+<section class="paper sec"><div class="wrap"><h2>Photos and files</h2>
+<div class="shots{' wide' if wide else ''}">{"".join(shot(*s) for s in views(i, name) + EXTRA_SHOTS.get(i, []))}</div>
 <h3 style="margin-top:36px">Downloads</h3><ul class="dl">{dl}</ul>{pld}{held}</div></section>
 <section class="dark sec"><div class="wrap pn"><a rel="prev" href="{prev}.html">← {E(META[prev][0])}</a><a href="../index.html#boards">All boards</a><a rel="next" href="{nxt}.html">{E(META[nxt][0])} →</a></div></section>"""
     return page(name, tag, body)

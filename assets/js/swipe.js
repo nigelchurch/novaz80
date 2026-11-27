@@ -122,7 +122,7 @@
   }
 
   /* ---- carousels: native snapping, plus dots that follow ---- */
-  $$('.cards, .sec .pair, .phases, .machines').forEach(box => {
+  $$('.cards, .sec .pair, .phases, .machines, .road, .shots').forEach(box => {
     const dots = document.createElement('div');
     dots.className = 'dots';
     dots.setAttribute('aria-hidden', 'true');
@@ -219,7 +219,7 @@
     } catch { /* storage blocked: no entrance animation */ }
     const pull = (x, ms) => { main.style.transition = ms ? `transform ${ms}ms ease-out` : ''; main.style.transform = x ? `translateX(${x}px)` : ''; };
     drag(main, {
-      skip: '.scroll, pre, .pair, input, .seg, .model, .viewer',
+      skip: '.scroll, pre, .pair, .shots, input, .seg, .model, .viewer',
       move: dx => pull(dx * .45),
       done: (dx, ms) => {
         if (!flick(dx, ms) || Math.abs(dx) < 60) return pull(0, 220);
